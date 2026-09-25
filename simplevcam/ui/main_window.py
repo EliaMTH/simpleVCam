@@ -11,7 +11,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, Q
 from ..engine import Engine
 from ..model import Layer, OutputSettings
 from ..presets import load_preset, save_preset
-from ..vcam import VCamError
+from .. import __version__
+from ..vcam import VCamError, not_installed_message
 from .add_source_dialog import AddSourceDialog
 from .layers_panel import LayersPanel
 from .mask_editor import MaskEditorDialog
@@ -30,7 +31,7 @@ def default_preset_dir() -> Path:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("simpleVCam")
+        self.setWindowTitle(f"simpleVCam {__version__}")
         self.resize(1400, 820)
         self.preset_path: Path | None = None
 
@@ -112,7 +113,7 @@ class MainWindow(QMainWindow):
 
         self.engine.start()
         if not self.engine.camera.available:
-            self.statusBar().showMessage("Virtual camera non installata: esegui scripts\\install_vcam.ps1 come amministratore.")
+            self.statusBar().showMessage(not_installed_message())
 
     # --- layers ----------------------------------------------------------------
 

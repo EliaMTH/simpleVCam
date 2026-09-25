@@ -3,36 +3,23 @@
 Virtual camera for Windows 11. It composes screens, windows, images and webcams
 and shows them to other apps (Teams, Zoom, Meet in the browser, the Camera app) as the **simpleVCam** webcam.
 
-## Requirements
+## Download
 
-- Windows 11
-- `MFCreateVirtualCamera`
-- Python 3.12
-- Visual Studio Build Tools with C++, the Windows SDK and CMake, only to build the camera DLL
+Requires Windows 11 (64-bit).
 
-## Installation
+1. Download `simpleVCam-<version>-setup.exe` from the
+   [latest release](https://github.com/EliaMTH/simpleVCam/releases/latest) and run it. It asks for
+   administrator rights because it registers the virtual camera with Windows.
+2. Open **simpleVCam** from the Start menu, add your sources and press **"Avvia camera"** (start camera).
+3. In Teams, Zoom, the browser, etc., pick **simpleVCam** as the camera.
 
-```bat
-:: 1. Python environment
-py -3.12 -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
+The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC": choose
+"More info" → "Run anyway". To check that the file is the published one, compare its hash with the `.sha256`
+file of the release (PowerShell: `Get-FileHash simpleVCam-<version>-setup.exe`).
 
-:: 2. virtual camera DLL
-native\build.bat
+To uninstall: Settings → Apps → Installed apps → simpleVCam.
 
-:: 3. camera registration, one time only, from PowerShell as administrator
-powershell -ExecutionPolicy Bypass -File scripts\install_vcam.ps1
-```
-
-The installer copies the DLL to `C:\Program Files\simpleVCam`, because the Windows Frame Server services cannot
-read it from user folders. It then registers it and creates `C:\ProgramData\simpleVCam`, which holds
-`output.cfg` and `vcam.log`. If you rebuild the DLL, close simpleVCam and run `install_vcam.ps1` again.
-
-To remove the camera: `scripts\uninstall_vcam.ps1`, as administrator.
-
-## Running
-
-`run.bat`, or `.venv\Scripts\python -m simplevcam`.
+## Usage
 
 The user interface is in Italian; the labels below are quoted as they appear in the app.
 
@@ -61,7 +48,8 @@ Notes:
 ## Presets
 
 Readable JSON. Masks are PNG files in the `<preset name>_masks` folder next to the file.
-`layers[0]` is the bottom layer.
+`layers[0]` is the bottom layer. The installed app saves presets in `Documents\simpleVCam` by default,
+the app run from the sources in `presets\`.
 
 ```json
 {
@@ -91,6 +79,67 @@ Readable JSON. Masks are PNG files in the `<preset name>_masks` folder next to t
 
 A window is found again by exact title, otherwise by exe. A webcam is found again by name, otherwise by index.
 
+## Build from source
+
+Requirements:
+- Windows 11 (the camera uses `MFCreateVirtualCamera`)
+- Python 3.12
+- Visual Studio Build Tools with C++, the Windows SDK and CMake, to build the camera DLL
+- Inno Setup 6, only to build the installer (`winget install JRSoftware.InnoSetup`)
+
+```bat
+:: 1. Python environment
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+
+:: 2. virtual camera DLL
+native\build.bat
+
+:: 3. camera registration, one time only, from PowerShell as administrator
+powershell -ExecutionPolicy Bypass -File scripts\install_vcam.ps1
+
+:: 4. run
+run.bat
+```
+
+`install_vcam.ps1` copies the DLL to `C:\Program Files\simpleVCam`, because the Windows Frame Server services
+cannot read it from user folders. It then registers it and creates `C:\ProgramData\simpleVCam`, which holds
+`output.cfg` and `vcam.log`. If you rebuild the DLL, close simpleVCam and run `install_vcam.ps1` again.
+To remove the camera: `scripts\uninstall_vcam.ps1`, as administrator.
+
+The script and the installer register the same camera in the same place: installing one replaces the other.
+
+### Tests
+
+```bat
+.venv\Scripts\python -m pytest
+.venv\Scripts\python scripts\vcam_selftest.py [fps]
+```
+
+`vcam_selftest.py` starts the camera, sends it a known pattern and reads it back through DirectShow and
+Media Foundation. It needs the camera installed. If something goes wrong, check `C:\ProgramData\simpleVCam\vcam.log`.
+
+`simpleVCam.exe --smoke-test [report.txt]` (or `python -m simplevcam --smoke-test`) checks that a build
+starts and renders, without a webcam or the camera; the release build runs it on the packaged app.
+
+### Installer and releases
+
+```bat
+powershell -ExecutionPolicy Bypass -File packaging\build_release.ps1
+```
+
+This builds the camera DLL, runs the tests, packages the app with PyInstaller, smoke-tests the packaged exe and
+creates `dist\simpleVCam-<version>-setup.exe` with its `.sha256`.
+
+Releases are built by GitHub Actions (`.github/workflows/release.yml`):
+1. set the new version in `simplevcam/__init__.py` (`__version__`) and commit;
+2. `git tag v<version>` and `git push origin v<version>`;
+3. the workflow builds the installer and creates a **draft** release with it attached: review the notes on
+   GitHub and press "Publish release".
+
+The workflow fails if the tag doesn't match `__version__`. It can also be started by hand from the Actions tab
+(Release → Run workflow): it then only builds, and the installer is downloadable from the run's artifacts.
+
 ## Structure
 
 - `simplevcam/`: the app
@@ -100,17 +149,15 @@ A window is found again by exact title, otherwise by exe. A webcam is found agai
   - `vcam.py`: camera control and shared memory
   - `sources/`: the sources
   - `ui/`: the user interface
+  - `smoke.py`: self-check of a build
 - `native/`: the camera's C++ DLL, a Media Foundation media source derived from
   [VCamSample](https://github.com/smourier/VCamSample) (MIT). It reads frames from the shared section
   `Global\simpleVCam_Frame`, created by the Frame Server service and written by the app.
-- `scripts/`: camera installation and self-test
+- `scripts/`: camera installation for development, and the camera self-test
+- `packaging/`: PyInstaller spec, Inno Setup script, release build script, icon generator, license texts
+- `.github/workflows/release.yml`: release build
 
-## Tests
+## License
 
-```bat
-.venv\Scripts\python -m pytest
-.venv\Scripts\python scripts\vcam_selftest.py [fps]
-```
-
-`vcam_selftest.py` starts the camera, sends it a known pattern and reads it back through DirectShow and
-Media Foundation. It needs the camera installed. If something goes wrong, check `C:\ProgramData\simpleVCam\vcam.log`.
+MIT, see [LICENSE](LICENSE). Third-party components and their licenses are listed in
+[packaging/THIRD-PARTY-NOTICES.txt](packaging/THIRD-PARTY-NOTICES.txt); the installer ships their full texts.

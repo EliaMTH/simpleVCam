@@ -1,0 +1,6 @@
+# Batch files must keep CRLF line endings (cmd.exe misreads LF-only batch files): store them as they are.
+*.bat -text
+*.cmd -text
+
+*.ico binary
+*.png binary

@@ -1,0 +1,42 @@
+simpleVCam includes or is built from the following third-party components.
+
+Qt for Python (PySide6, shiboken6) and Qt
+  License: GNU Lesser General Public License v3 (LGPL-3.0)
+  https://www.qt.io/qt-for-python  -  source: https://code.qt.io/
+  The Qt and PySide6 libraries are shipped as separate DLL/PYD files in the installation folder
+  and can be replaced with other compatible builds.
+
+OpenCV (opencv-python)
+  License: Apache License 2.0
+  https://opencv.org/  -  https://github.com/opencv/opencv-python
+
+NumPy
+  License: BSD 3-Clause (and bundled components under 0BSD, MIT, Zlib, CC0-1.0)
+  https://numpy.org/
+
+windows-capture
+  License: MIT
+  https://github.com/NiiightmareXD/windows-capture
+
+pygrabber
+  License: MIT
+  https://github.com/andreaschiavinato/python_grabber
+
+comtypes
+  License: MIT
+  https://github.com/enthought/comtypes
+
+Python
+  License: Python Software Foundation License
+  https://www.python.org/
+
+PyInstaller (bootloader)
+  License: GPL-2.0-or-later with an exception that allows distributing applications built with it
+  https://pyinstaller.org/
+
+VCamSample (structure of the virtual camera media source)
+  Copyright (c) 2024-2026 Simon Mourier
+  License: MIT
+  https://github.com/smourier/VCamSample
+
+The full license texts are in the "licenses" folder of the installation.

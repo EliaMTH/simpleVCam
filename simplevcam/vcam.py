@@ -1,6 +1,6 @@
 """Virtual camera control: starts/stops the simpleVCam camera and feeds it frames.
 
-The camera is the native media source in native/ (installed with scripts/install_vcam.ps1).
+The camera is the native media source in native/ (installed by the installer, or by scripts/install_vcam.ps1).
 Windows loads it inside the Frame Server service, which creates the shared section
 SECTION_NAME when an app opens the camera; we open that section and write BGRA frames into it.
 Layout and names must match native/src/SharedFrame.h and native/src/Common.h.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import sys
 import time
 import winreg
 from ctypes import wintypes
@@ -34,6 +35,12 @@ _REOPEN_INTERVAL = 0.5  # seconds between attempts to open the section while no 
 
 class VCamError(RuntimeError):
     pass
+
+
+def not_installed_message() -> str:
+    if getattr(sys, "frozen", False):  # packaged app: the installer registers the camera
+        return "La virtual camera non è installata: reinstalla simpleVCam."
+    return "La virtual camera non è installata: esegui scripts\\install_vcam.ps1 come amministratore."
 
 
 def installed_dll_path() -> str | None:
@@ -143,7 +150,7 @@ class VirtualCamera:
     def _load(self):
         if self._dll is None:
             if not self.available:
-                raise VCamError("La virtual camera non è installata: esegui scripts\\install_vcam.ps1 come amministratore.")
+                raise VCamError(not_installed_message())
             dll = ctypes.WinDLL(self.dll_path)
             dll.SvcStart.argtypes = [wintypes.LPCWSTR]
             dll.SvcStart.restype = ctypes.c_long
