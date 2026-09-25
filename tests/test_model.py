@@ -15,7 +15,8 @@ def make_scene() -> Scene:
     window = Layer(SourceSpec("window", title="Documento - Word", exe="WINWORD.EXE"), "Word")
     image = Layer(SourceSpec("image", path="C:/immagini/logo è.png"), "Logo", Transform(1.5, 2.5, 2 / 3, 1))
     webcam = Layer(SourceSpec("webcam", index=0, name="Microsoft LifeCam HD-3000"), "Webcam")
-    return Scene(OutputSettings(1920, 1080, 25), [screen, window, image, webcam])
+    webcam.transform.flip_h = True
+    return Scene(OutputSettings(1920, 1080, 25, mirror=True), [screen, window, image, webcam])
 
 
 def test_roundtrip(tmp_path):
@@ -32,6 +33,7 @@ def test_roundtrip(tmp_path):
         assert copy.crop == original.crop
         assert copy.transform.x == pytest.approx(original.transform.x)
         assert copy.transform.scale_x == pytest.approx(original.transform.scale_x, abs=1e-6)
+        assert (copy.transform.flip_h, copy.transform.flip_v) == (original.transform.flip_h, original.transform.flip_v)
         if original.mask is None:
             assert copy.mask is None
         else:
@@ -43,13 +45,14 @@ def test_json_is_readable(tmp_path):
     save_preset(make_scene(), path)
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["version"] == 1
-    assert data["output"] == {"width": 1920, "height": 1080, "fps": 25}
+    assert data["output"] == {"width": 1920, "height": 1080, "fps": 25, "mirror": True}
     first = data["layers"][0]
     assert first["source"] == {"type": "screen", "monitor": 1}
     assert first["mask"] == f"p_masks/{first['id']}.png"
     assert (tmp_path / first["mask"]).is_file()
     assert data["layers"][1]["mask"] is None
     assert data["layers"][2]["source"]["path"] == "C:/immagini/logo è.png"
+    assert data["layers"][3]["transform"]["flip_h"] is True
 
 
 def test_stale_masks_are_removed(tmp_path):
@@ -83,3 +86,16 @@ def test_geometry():
     assert w <= 1280 and h <= 720
     assert (w == pytest.approx(1280)) or (h == pytest.approx(720))
     assert x == pytest.approx((1280 - w) / 2) and y == pytest.approx((720 - h) / 2)
+
+
+def test_fit_keeps_mirroring():
+    layer = Layer(SourceSpec("webcam", index=0), "w")
+    layer.source_size = (640, 480)
+    layer.transform.flip_h = True
+    layer.fit_to(OutputSettings(1280, 720))
+    assert layer.transform.flip_h
+
+
+def test_old_presets_without_mirroring_load():
+    assert Transform.from_dict({"x": 1, "y": 2, "scale_x": 0.5, "scale_y": 0.5}).flip_h is False
+    assert OutputSettings.from_dict({"width": 640, "height": 480, "fps": 30}).mirror is False

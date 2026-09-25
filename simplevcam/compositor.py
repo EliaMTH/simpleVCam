@@ -62,7 +62,17 @@ class Compositor:
         cropped = frame[y0:y1, x0:x1]
         interp = cv2.INTER_AREA if dw < cw or dh < ch else cv2.INTER_LINEAR
         scaled = cropped if (dw, dh) == (cw, ch) else cv2.resize(cropped, (dw, dh), interpolation=interp)
-        src = scaled[vy0 - dy:vy1 - dy, vx0 - dx:vx1 - dx]
+
+        # visible part of the layer, in layer coordinates; when mirrored, it comes from the opposite side
+        sx0, sx1, sy0, sy1 = vx0 - dx, vx1 - dx, vy0 - dy, vy1 - dy
+        flip = t.flip_code()
+        if flip in (1, -1):
+            sx0, sx1 = dw - sx1, dw - sx0
+        if flip in (0, -1):
+            sy0, sy1 = dh - sy1, dh - sy0
+        src = scaled[sy0:sy1, sx0:sx1]
+        if flip is not None:
+            src = cv2.flip(src, flip)
         dst = canvas[vy0:vy1, vx0:vx1]
 
         # Work on 4 channels with OpenCV: whole-pixel copies are an order of magnitude
@@ -77,7 +87,9 @@ class Compositor:
 
         mask = self._scaled_mask(layer, (sw, sh), (dw, dh))
         if mask is not None:
-            mask = mask[vy0 - dy:vy1 - dy, vx0 - dx:vx1 - dx]
+            mask = mask[sy0:sy1, sx0:sx1]
+            if flip is not None:
+                mask = cv2.flip(mask, flip)
             if alpha is None:
                 cv2.copyTo(src, mask, dst)  # binary: copy where visible, in place
                 return

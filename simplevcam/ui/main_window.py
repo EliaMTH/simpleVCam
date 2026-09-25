@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
                                QSplitter, QVBoxLayout, QWidget)
 
 from ..engine import Engine
@@ -54,12 +54,15 @@ class MainWindow(QMainWindow):
         self.resolution = QComboBox()
         for w, h in RESOLUTIONS:
             self.resolution.addItem(f"{w}×{h}", (w, h))
+        self.mirror = QCheckBox("Specchia uscita")
+        self.mirror.setToolTip("Specchia orizzontalmente tutta l'immagine inviata alla camera (e l'anteprima)")
         self.fps = QComboBox()
         for fps in FRAME_RATES:
             self.fps.addItem(f"{fps} fps", fps)
         self._show_output(self.engine.scene.output)
         self.resolution.currentIndexChanged.connect(self._on_output_changed)
         self.fps.currentIndexChanged.connect(self._on_output_changed)
+        self.mirror.toggled.connect(self._on_output_changed)
 
         self.camera_btn = QPushButton()
         self.camera_btn.setCheckable(True)
@@ -75,6 +78,8 @@ class MainWindow(QMainWindow):
         bar.addWidget(QLabel("Output:"))
         bar.addWidget(self.resolution)
         bar.addWidget(self.fps)
+        bar.addSpacing(12)
+        bar.addWidget(self.mirror)
         bar.addStretch(1)
         bar.addWidget(self.camera_label)
         bar.addWidget(self.camera_btn)
@@ -184,7 +189,7 @@ class MainWindow(QMainWindow):
     # --- output and camera -----------------------------------------------------
 
     def _show_output(self, output: OutputSettings) -> None:
-        for widget in (self.resolution, self.fps):
+        for widget in (self.resolution, self.fps, self.mirror):
             widget.blockSignals(True)
         index = self.resolution.findData((output.width, output.height))
         if index < 0:
@@ -196,12 +201,13 @@ class MainWindow(QMainWindow):
             self.fps.addItem(f"{output.fps} fps", output.fps)
             index = self.fps.count() - 1
         self.fps.setCurrentIndex(index)
-        for widget in (self.resolution, self.fps):
+        self.mirror.setChecked(output.mirror)
+        for widget in (self.resolution, self.fps, self.mirror):
             widget.blockSignals(False)
 
     def _on_output_changed(self) -> None:
         w, h = self.resolution.currentData()
-        output = OutputSettings(w, h, self.fps.currentData())
+        output = OutputSettings(w, h, self.fps.currentData(), self.mirror.isChecked())
         if output == self.engine.scene.output:
             return
         try:

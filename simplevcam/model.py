@@ -14,30 +14,48 @@ class OutputSettings:
     width: int = 1280
     height: int = 720
     fps: int = 60
+    mirror: bool = False  # flip the whole output horizontally
 
     def to_dict(self) -> dict:
-        return {"width": self.width, "height": self.height, "fps": self.fps}
+        return {"width": self.width, "height": self.height, "fps": self.fps, "mirror": self.mirror}
 
     @classmethod
     def from_dict(cls, d: dict) -> OutputSettings:
-        return cls(width=int(d.get("width", 1280)), height=int(d.get("height", 720)), fps=int(d.get("fps", 60)))
+        return cls(width=int(d.get("width", 1280)), height=int(d.get("height", 720)), fps=int(d.get("fps", 60)),
+                   mirror=bool(d.get("mirror", False)))
+
+    def same_format(self, other: OutputSettings) -> bool:
+        """True if the camera would announce the same format (mirroring doesn't change it)."""
+        return (self.width, self.height, self.fps) == (other.width, other.height, other.fps)
 
 
 @dataclass
 class Transform:
-    """Position of the (cropped) source on the output canvas, in output pixels, and its scale."""
+    """Position of the (cropped) source on the output canvas, in output pixels, its scale and mirroring."""
 
     x: float = 0.0
     y: float = 0.0
     scale_x: float = 1.0
     scale_y: float = 1.0
+    flip_h: bool = False  # mirror left-right
+    flip_v: bool = False  # mirror top-bottom
 
     def to_dict(self) -> dict:
-        return {k: round(v, 6) for k, v in vars(self).items()}
+        return {k: v if isinstance(v, bool) else round(v, 6) for k, v in vars(self).items()}
 
     @classmethod
     def from_dict(cls, d: dict) -> Transform:
-        return cls(**{k: float(d.get(k, default)) for k, default in vars(cls()).items()})
+        return cls(**{k: type(default)(d.get(k, default)) for k, default in vars(cls()).items()})
+
+    def flip_code(self) -> int | None:
+        """cv2.flip code for the mirroring, or None if not mirrored."""
+        if self.flip_h and self.flip_v:
+            return -1
+        if self.flip_h:
+            return 1
+        if self.flip_v:
+            return 0
+        return None
 
 
 @dataclass
@@ -137,7 +155,9 @@ class Layer:
         if cw <= 0 or ch <= 0:
             return
         s = min(output.width / cw, output.height / ch)
-        self.transform = Transform(x=(output.width - cw * s) / 2, y=(output.height - ch * s) / 2, scale_x=s, scale_y=s)
+        t = self.transform  # keep the mirroring
+        t.x, t.y = (output.width - cw * s) / 2, (output.height - ch * s) / 2
+        t.scale_x = t.scale_y = s
 
 
 @dataclass

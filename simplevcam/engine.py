@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 import time
 
+import cv2
 import numpy as np
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage
@@ -80,8 +81,10 @@ class Engine(QObject):
 
     def set_output(self, output: OutputSettings) -> None:
         with self._lock:
+            previous = self.scene.output
             self.scene.output = output
-        self._camera_follow_output()
+        if not output.same_format(previous):
+            self._camera_follow_output()
 
     def source_status(self, layer_id: str) -> str:
         source = self._sources.get(layer_id)
@@ -162,16 +165,17 @@ class Engine(QObject):
             if canvas is None or canvas.shape[:2] != (out.height, out.width):
                 canvas = new_canvas(out.width, out.height)
             self._compositor.compose(canvas, layers, frames)
+            result = cv2.flip(canvas, 1) if out.mirror else canvas
 
             with self._camera_lock:
                 try:
-                    self.camera.send(canvas)
+                    self.camera.send(result)
                 except Exception as e:  # never let a camera problem stop the preview
                     print("camera send failed:", e)
 
             # the camera gets every frame; the preview at most PREVIEW_MAX_FPS (repainting costs GUI time)
             if frames_done % max(1, round(out.fps / PREVIEW_MAX_FPS)) == 0:
-                image = QImage(canvas.data, out.width, out.height, out.width * 4, QImage.Format.Format_RGB32).copy()
+                image = QImage(result.data, out.width, out.height, out.width * 4, QImage.Format.Format_RGB32).copy()
                 self.preview_ready.emit(image)
             if fitted:
                 self.layers_changed.emit()

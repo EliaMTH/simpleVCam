@@ -100,6 +100,10 @@ class LayersPanel(QWidget):
         self.w_spin, self.h_spin = _spin(1, 40000), _spin(1, 40000)
         self.keep_aspect = QCheckBox("Blocca proporzioni")
         self.keep_aspect.setChecked(True)
+        self.flip_h = QCheckBox("Specchia orizzontale")
+        self.flip_v = QCheckBox("Specchia verticale")
+        self.flip_h.toggled.connect(self._on_flip_edited)
+        self.flip_v.toggled.connect(self._on_flip_edited)
         for box in (self.x_spin, self.y_spin):
             box.valueChanged.connect(self._on_position_edited)
         self.w_spin.valueChanged.connect(lambda: self._on_size_edited("w"))
@@ -128,6 +132,8 @@ class LayersPanel(QWidget):
         geometry.addWidget(QLabel("H"), 1, 2)
         geometry.addWidget(self.h_spin, 1, 3)
         geometry.addWidget(self.keep_aspect, 2, 0, 1, 4)
+        geometry.addWidget(self.flip_h, 3, 0, 1, 2)
+        geometry.addWidget(self.flip_v, 3, 2, 1, 2)
 
         crop = QGridLayout()
         for i, (side, label) in enumerate((("left", "Sinistra"), ("right", "Destra"), ("top", "Sopra"), ("bottom", "Sotto"))):
@@ -214,6 +220,8 @@ class LayersPanel(QWidget):
                     box.setMaximum(max(0, (layer.source_size[0] if side in ("left", "right") else layer.source_size[1]) - 1))
                 if not box.hasFocus():
                     box.setValue(getattr(layer.crop, side))
+            self.flip_h.setChecked(layer.transform.flip_h)
+            self.flip_v.setChecked(layer.transform.flip_v)
             self.mask_btn.setText("Mask… ●" if layer.mask is not None else "Mask…")
         finally:
             self._updating = False
@@ -275,6 +283,13 @@ class LayersPanel(QWidget):
         # keep the displayed scale: cropping removes content, it doesn't stretch what is left
         layer.crop = Crop(**{side: box.value() for side, box in self.crop_spins.items()})
         self.refresh()
+
+    def _on_flip_edited(self) -> None:
+        layer = self.selected_layer()
+        if self._updating or layer is None:
+            return
+        layer.transform.flip_h = self.flip_h.isChecked()
+        layer.transform.flip_v = self.flip_v.isChecked()
 
     def _on_fit(self) -> None:
         layer = self.selected_layer()

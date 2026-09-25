@@ -36,20 +36,23 @@ Per rimuovere la camera: `scripts\uninstall_vcam.ps1`, da amministratore.
 
 - **Anteprima**: click per selezionare un layer, trascinalo per spostarlo, trascina un angolo per
   ridimensionarlo (Shift = proporzioni libere). Le frecce spostano di 1 px (Shift: 10 px).
-- **Barra in alto**: salva e carica preset, risoluzione e fps di output, accensione della camera.
+- **Barra in alto**: salva e carica preset, risoluzione e fps di output (15, 30, 60 o 120; si parte da 60),
+  "Specchia uscita" per specchiare tutta l'immagine inviata alla camera, accensione della camera.
 - **Layer**: il primo della lista è in primo piano. Per cambiare l'ordine trascina i layer nella lista,
-  oppure usa ▲ e ▼. Posizione, dimensione e crop si impostano anche dal pannello proprietà.
+  oppure usa ▲ e ▼. Posizione, dimensione, specchio (orizzontale e verticale) e crop si impostano anche dal
+  pannello proprietà.
 - **Mask**: immagine binaria grande quanto la sorgente, in cui il rosso è la zona nascosta.
-  Hai a disposizione pennello, rettangolo ed ellisse. Il tasto sinistro applica la modalità scelta (mostra
-  o nascondi), il destro l'opposta. Ci sono anche mostra tutto, nascondi tutto e inverti, con Ctrl+Z per
-  annullare e Ctrl+rotella per lo zoom. La mask viene applicata prima del crop.
+  Hai a disposizione pennello, rettangolo ed ellisse; con Ctrl premuto il rettangolo diventa un quadrato e
+  l'ellisse un cerchio. Il tasto sinistro applica la modalità scelta (di default nasconde), il destro
+  l'opposta. Ci sono anche mostra tutto, nascondi tutto e inverti, con Ctrl+Z per annullare e Ctrl+rotella
+  per lo zoom. La mask viene applicata prima di crop e specchio, quindi resta sul contenuto della sorgente.
 - **Avvia camera**: crea il device "simpleVCam", che sparisce quando la fermi o chiudi l'app.
   Nelle app DirectShow compare come "simpleVCam (Fotocamera virtuale di Windows)".
 
 Note:
 - Una webcam usata come sorgente resta occupata da simpleVCam: nelle altre app scegli "simpleVCam".
-- La risoluzione di output è fissa finché la camera è accesa. Se la cambi, la camera viene ricreata e le app
-  collegate potrebbero doverla riselezionare.
+- Risoluzione e fps di output sono fissi finché la camera è accesa. Se li cambi, la camera viene ricreata e le
+  app collegate potrebbero doverla riselezionare. "Specchia uscita" invece non la ricrea.
 - Con la camera accesa ma nessuna app collegata, l'app non invia frame.
 
 ## Preset
@@ -60,13 +63,13 @@ JSON leggibile. Le mask sono PNG nella cartella `<nome preset>_masks` accanto al
 ```json
 {
   "version": 1,
-  "output": {"width": 1280, "height": 720, "fps": 30},
+  "output": {"width": 1280, "height": 720, "fps": 60, "mirror": false},
   "layers": [
     {
       "id": "a1b2c3d4",
       "name": "Schermo 1",
       "source": {"type": "screen", "monitor": 1},
-      "transform": {"x": 0, "y": 0, "scale_x": 0.666667, "scale_y": 0.666667},
+      "transform": {"x": 0, "y": 0, "scale_x": 0.666667, "scale_y": 0.666667, "flip_h": false, "flip_v": false},
       "crop": {"left": 0, "top": 0, "right": 0, "bottom": 0},
       "mask": "mio_preset_masks/a1b2c3d4.png"
     }
@@ -89,7 +92,7 @@ Una finestra si ritrova per titolo esatto oppure per exe. Una webcam si ritrova 
 
 - `simplevcam/`: l'app
   - `model.py`, `presets.py`: scena e preset
-  - `compositor.py`: mask → crop → scala → posizione
+  - `compositor.py`: mask → crop → scala → specchio → posizione
   - `engine.py`: loop di rendering
   - `vcam.py`: controllo della camera e memoria condivisa
   - `sources/`: le sorgenti
@@ -103,7 +106,7 @@ Una finestra si ritrova per titolo esatto oppure per exe. Una webcam si ritrova 
 
 ```bat
 .venv\Scripts\python -m pytest
-.venv\Scripts\python scripts\vcam_selftest.py
+.venv\Scripts\python scripts\vcam_selftest.py [fps]
 ```
 
 `vcam_selftest.py` accende la camera, le invia un pattern noto e lo rilegge via DirectShow e Media Foundation.

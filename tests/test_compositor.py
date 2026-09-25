@@ -108,3 +108,29 @@ def test_missing_frame_is_skipped():
     l = layer()
     canvas = compose([l], {l.id: None})
     assert (canvas[..., :3] == 0).all()
+
+
+def test_flip_horizontal_keeps_mask_on_content():
+    frame = solid(10, 4, (0, 0, 0))
+    frame[:, :3] = (255, 255, 255, 255)  # white on the left of the source
+    l = layer()
+    l.transform.flip_h = True
+    mask = np.full((4, 10), 255, np.uint8)
+    mask[:, :1] = 0  # hide the first source column
+    l.set_mask(mask)
+    canvas = compose([l], {l.id: frame})
+    # mirrored: the white block is on the right, and the hidden column (source x=0) is the last one
+    assert (canvas[:4, 7:9, :3] == 255).all()
+    assert (canvas[:4, 9, :3] == 0).all()
+    assert (canvas[:4, :7, :3] == 0).all()
+
+
+def test_flip_vertical_with_clipping():
+    frame = solid(4, 10, (0, 0, 0))
+    frame[:2] = (255, 255, 255, 255)  # white on top of the source
+    l = layer(0, -5)  # top 5 rows outside the canvas
+    l.transform.flip_v = True
+    canvas = compose([l], {l.id: frame})
+    # mirrored: white at the bottom (layer rows 8-9 -> canvas rows 3-4)
+    assert (canvas[3:5, :4, :3] == 255).all()
+    assert (canvas[0:3, :4, :3] == 0).all()

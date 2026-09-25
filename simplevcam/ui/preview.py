@@ -47,13 +47,24 @@ class PreviewWidget(QWidget):
     def _scale(self) -> float:
         return self._canvas_rect().width() / self.engine.scene.output.width
 
+    # When the output is mirrored the preview shows it mirrored too (what the camera sends),
+    # so widget <-> canvas mappings flip the x axis.
+
+    def _mirrored(self) -> bool:
+        return self.engine.scene.output.mirror
+
     def _to_canvas(self, p: QPointF) -> QPointF:
         r = self._canvas_rect()
         s = self._scale()
-        return QPointF((p.x() - r.x()) / s, (p.y() - r.y()) / s)
+        x = (p.x() - r.x()) / s
+        if self._mirrored():
+            x = self.engine.scene.output.width - x
+        return QPointF(x, (p.y() - r.y()) / s)
 
     def _layer_widget_rect(self, layer: Layer) -> QRectF:
         x, y, w, h = layer.display_rect()
+        if self._mirrored():
+            x = self.engine.scene.output.width - x - w
         r = self._canvas_rect()
         s = self._scale()
         return QRectF(r.x() + x * s, r.y() + y * s, w * s, h * s)
@@ -110,6 +121,8 @@ class PreviewWidget(QWidget):
         pos = event.position()
         corner = self._handle_at(pos)
         if corner is not None:
+            if self._mirrored():
+                corner = (1, 0, 3, 2)[corner]  # widget corner -> canvas corner
             layer = self._selected_layer()
             x, y, w, h = layer.display_rect()
             anchor = [(x + w, y + h), (x, y + h), (x, y), (x + w, y)][corner]  # opposite corner
@@ -178,6 +191,8 @@ class PreviewWidget(QWidget):
             return
         step = 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1
         dx, dy = moves[event.key()]
+        if self._mirrored():
+            dx = -dx  # move the way it looks in the preview
         layer.transform.x += dx * step
         layer.transform.y += dy * step
         self.layer_edited.emit()
