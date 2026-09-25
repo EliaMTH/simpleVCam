@@ -4,6 +4,7 @@ import threading
 
 import cv2
 
+from ..i18n import tr
 from .base import Source
 from .winutil import list_webcams
 
@@ -42,12 +43,12 @@ class WebcamSource(Source):
         while not self._stop.is_set():
             index = self._resolve_index()
             if index is None:
-                self.status = f"webcam non trovata: {self.name}"
+                self.status = tr("webcam not found: {name}", name=self.name)
                 self._stop.wait(2)
                 continue
             cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
             if not cap.isOpened():
-                self.status = f"webcam non disponibile (forse in uso da un'altra app): {self.name}"
+                self.status = tr("webcam not available (maybe in use by another app): {name}", name=self.name)
                 cap.release()
                 self._stop.wait(2)
                 continue
@@ -65,5 +66,5 @@ class WebcamSource(Source):
                     self._stop.wait(0.05)
             cap.release()
             if not self._stop.is_set():
-                self.status = f"webcam scollegata: {self.name}"
+                self.status = tr("webcam disconnected: {name}", name=self.name)
                 self._stop.wait(1)

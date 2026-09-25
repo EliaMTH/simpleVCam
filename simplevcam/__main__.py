@@ -2,10 +2,10 @@ import ctypes
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from simplevcam.ui.language import apply_language, initial_language
 from simplevcam.ui.main_window import MainWindow
 from simplevcam.ui.theme import apply_dark_theme
 
@@ -19,10 +19,7 @@ def main() -> int:
     app.setApplicationName("simpleVCam")
     app.setWindowIcon(QIcon(str(ICON)))
     apply_dark_theme(app)
-    # standard dialog buttons ("Cancel", ...) in the system language
-    translator = QTranslator(app)
-    if translator.load(QLocale.system(), "qtbase", "_", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
-        app.installTranslator(translator)
+    apply_language(initial_language())
 
     if "--smoke-test" in sys.argv:
         from simplevcam.smoke import run

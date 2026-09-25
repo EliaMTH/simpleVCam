@@ -7,33 +7,32 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout, QLineEdit,
                                QListWidget, QListWidgetItem, QPushButton, QTabWidget, QVBoxLayout, QWidget)
 
+from ..i18n import tr
 from ..model import SourceSpec
 from ..sources.winutil import list_monitors, list_webcams, list_windows
-
-IMAGE_FILTER = "Immagini (*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff);;Tutti i file (*)"
 
 
 class AddSourceDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Aggiungi sorgente")
+        self.setWindowTitle(tr("Add source"))
         self.resize(560, 420)
 
         self.screens = QListWidget()
         self.windows = QListWidget()
         self.webcams = QListWidget()
         self.image_path = QLineEdit()
-        self.image_path.setPlaceholderText("Percorso dell'immagine")
+        self.image_path.setPlaceholderText(tr("Image path"))
         self.name_edit = QLineEdit()
 
-        refresh = QPushButton("Aggiorna elenco")
+        refresh = QPushButton(tr("Refresh list"))
         refresh.clicked.connect(self._fill_windows)
         windows_page = QWidget()
         wl = QVBoxLayout(windows_page)
         wl.addWidget(self.windows)
         wl.addWidget(refresh, 0, Qt.AlignmentFlag.AlignRight)
 
-        browse = QPushButton("Sfoglia…")
+        browse = QPushButton(tr("Browse…"))
         browse.clicked.connect(self._browse_image)
         image_page = QWidget()
         il = QVBoxLayout(image_page)
@@ -44,10 +43,10 @@ class AddSourceDialog(QDialog):
         il.addStretch(1)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.screens, "Schermo")
-        self.tabs.addTab(windows_page, "Finestra")
-        self.tabs.addTab(image_page, "Immagine")
-        self.tabs.addTab(self.webcams, "Webcam")
+        self.tabs.addTab(self.screens, tr("Screen"))
+        self.tabs.addTab(windows_page, tr("Window"))
+        self.tabs.addTab(image_page, tr("Image"))
+        self.tabs.addTab(self.webcams, tr("Webcam"))
         self.tabs.currentChanged.connect(self._suggest_name)
 
         for lst in (self.screens, self.windows, self.webcams):
@@ -60,7 +59,7 @@ class AddSourceDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         form = QFormLayout()
-        form.addRow("Nome del layer", self.name_edit)
+        form.addRow(tr("Layer name"), self.name_edit)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.tabs, 1)
@@ -97,7 +96,8 @@ class AddSourceDialog(QDialog):
         self.webcams.setCurrentRow(0)
 
     def _browse_image(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Scegli un'immagine", self.image_path.text(), IMAGE_FILTER)
+        path, _ = QFileDialog.getOpenFileName(self, tr("Choose an image"), self.image_path.text(),
+                                              tr("Images (*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff);;All files (*)"))
         if path:
             self.image_path.setText(path)
 
@@ -109,7 +109,7 @@ class AddSourceDialog(QDialog):
         page = self.tabs.currentIndex()
         name = ""
         if page == 0 and (m := self._current_data(self.screens)):
-            name = f"Schermo {m.index}"
+            name = tr("Screen {index}", index=m.index)
         elif page == 1 and (w := self._current_data(self.windows)):
             name = w.title[:40]
         elif page == 2 and self.image_path.text():

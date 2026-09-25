@@ -16,6 +16,8 @@ from ctypes import wintypes
 
 import numpy as np
 
+from .i18n import tr
+
 CLSID = "{5FF39D7F-AB7D-467D-8A8F-9D45DFE61F9C}"
 FRIENDLY_NAME = "simpleVCam"
 SECTION_NAME = "Global\\simpleVCam_Frame"
@@ -39,8 +41,8 @@ class VCamError(RuntimeError):
 
 def not_installed_message() -> str:
     if getattr(sys, "frozen", False):  # packaged app: the installer registers the camera
-        return "La virtual camera non è installata: reinstalla simpleVCam."
-    return "La virtual camera non è installata: esegui scripts\\install_vcam.ps1 come amministratore."
+        return tr("The virtual camera is not installed: reinstall simpleVCam.")
+    return tr("The virtual camera is not installed: run scripts\\install_vcam.ps1 as administrator.")
 
 
 def installed_dll_path() -> str | None:
@@ -163,18 +165,18 @@ class VirtualCamera:
         if self.running:
             self.stop()
         if width % 2 or height % 2:
-            raise VCamError("La risoluzione deve avere larghezza e altezza pari.")
+            raise VCamError(tr("Width and height must be even."))
         dll = self._load()
         try:
             os.makedirs(DATA_DIR, exist_ok=True)
             with open(CONFIG_FILE, "w", encoding="ascii") as f:
                 f.write(f"{width} {height} {fps}\n")
         except OSError as e:
-            raise VCamError(f"Impossibile scrivere {CONFIG_FILE}: {e}") from e
+            raise VCamError(tr("Cannot write {path}: {error}", path=CONFIG_FILE, error=e)) from e
 
         hr = dll.SvcStart(FRIENDLY_NAME)
         if hr < 0:
-            raise VCamError(f"Avvio della virtual camera fallito (HRESULT 0x{hr & 0xFFFFFFFF:08X}).")
+            raise VCamError(tr("Starting the virtual camera failed (HRESULT 0x{hr:08X}).", hr=hr & 0xFFFFFFFF))
         self._fps = fps
         self._section = _Section()
         self._last_open_attempt = 0.0

@@ -8,21 +8,24 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QCheckBox,QD
                                QVBoxLayout, QWidget)
 
 from ..engine import Engine
+from ..i18n import tr
 from ..model import Crop, Layer
 
-TYPE_LABELS = {"screen": "Schermo", "window": "Finestra", "image": "Immagine", "webcam": "Webcam"}
+
+def type_label(source_type: str) -> str:
+    return {"screen": tr("Screen"), "window": tr("Window"), "image": tr("Image"), "webcam": tr("Webcam")}[source_type]
 
 
 def describe_source(layer: Layer) -> str:
     s = layer.source
     detail = {
-        "screen": f"monitor {s.monitor}",
+        "screen": tr("monitor {index}", index=s.monitor),
         "window": f"{s.title or ''} ({s.exe or '?'})",
         "image": s.path or "",
         "webcam": s.name or f"#{s.index}",
     }[s.type]
     size = f" — {layer.source_size[0]}×{layer.source_size[1]}" if layer.source_size else ""
-    return f"{TYPE_LABELS[s.type]}: {detail}{size}"
+    return f"{type_label(s.type)}: {detail}{size}"
 
 
 class _LayerList(QListWidget):
@@ -68,23 +71,22 @@ class LayersPanel(QWidget):
         self.list.currentItemChanged.connect(self._on_current_changed)
         self.list.reordered.connect(self._on_reordered)
 
-        add = QPushButton("+ Aggiungi")
-        add.clicked.connect(self.add_requested)
-        self.remove_btn = QPushButton("− Rimuovi")
+        # texts are set in retranslate()
+        self.add_btn = QPushButton()
+        self.add_btn.clicked.connect(self.add_requested)
+        self.remove_btn = QPushButton()
         self.remove_btn.clicked.connect(lambda: self._emit_for_selected(self.remove_requested))
         self.up_btn = QPushButton("▲")
-        self.up_btn.setToolTip("Porta su")
         self.up_btn.clicked.connect(lambda: self._emit_for_selected(self.move_requested, 1))
         self.down_btn = QPushButton("▼")
-        self.down_btn.setToolTip("Porta giù")
         self.down_btn.clicked.connect(lambda: self._emit_for_selected(self.move_requested, -1))
-        self.mask_btn = QPushButton("Mask…")
+        self.mask_btn = QPushButton()
         self.mask_btn.clicked.connect(lambda: self._emit_for_selected(self.mask_requested))
         for b in (self.up_btn, self.down_btn):
             b.setFixedWidth(32)
 
         buttons = QHBoxLayout()
-        for b in (add, self.remove_btn, self.up_btn, self.down_btn, self.mask_btn):
+        for b in (self.add_btn, self.remove_btn, self.up_btn, self.down_btn, self.mask_btn):
             buttons.addWidget(b)
 
         # properties
@@ -98,10 +100,10 @@ class LayersPanel(QWidget):
 
         self.x_spin, self.y_spin = _spin(-20000, 20000), _spin(-20000, 20000)
         self.w_spin, self.h_spin = _spin(1, 40000), _spin(1, 40000)
-        self.keep_aspect = QCheckBox("Blocca proporzioni")
+        self.keep_aspect = QCheckBox()
         self.keep_aspect.setChecked(True)
-        self.flip_h = QCheckBox("Specchia orizzontale")
-        self.flip_v = QCheckBox("Specchia verticale")
+        self.flip_h = QCheckBox()
+        self.flip_v = QCheckBox()
         self.flip_h.toggled.connect(self._on_flip_edited)
         self.flip_v.toggled.connect(self._on_flip_edited)
         for box in (self.x_spin, self.y_spin):
@@ -117,10 +119,10 @@ class LayersPanel(QWidget):
             box.valueChanged.connect(self._on_crop_edited)
             self.crop_spins[side] = box
 
-        fit_btn = QPushButton("Adatta al canvas")
-        fit_btn.clicked.connect(self._on_fit)
-        reset_crop_btn = QPushButton("Reset crop")
-        reset_crop_btn.clicked.connect(self._on_reset_crop)
+        self.fit_btn = QPushButton()
+        self.fit_btn.clicked.connect(self._on_fit)
+        self.reset_crop_btn = QPushButton()
+        self.reset_crop_btn.clicked.connect(self._on_reset_crop)
 
         geometry = QGridLayout()
         geometry.addWidget(QLabel("X"), 0, 0)
@@ -136,33 +138,61 @@ class LayersPanel(QWidget):
         geometry.addWidget(self.flip_v, 3, 2, 1, 2)
 
         crop = QGridLayout()
-        for i, (side, label) in enumerate((("left", "Sinistra"), ("right", "Destra"), ("top", "Sopra"), ("bottom", "Sotto"))):
-            crop.addWidget(QLabel(label), i // 2, (i % 2) * 2)
+        self.crop_labels = {}
+        for i, side in enumerate(("left", "right", "top", "bottom")):
+            self.crop_labels[side] = QLabel()
+            crop.addWidget(self.crop_labels[side], i // 2, (i % 2) * 2)
             crop.addWidget(self.crop_spins[side], i // 2, (i % 2) * 2 + 1)
 
+        self.name_label = QLabel()
+        self.position_label = QLabel()
+        self.crop_label = QLabel()
         form = QFormLayout()
-        form.addRow("Nome", self.name_edit)
+        form.addRow(self.name_label, self.name_edit)
         form.addRow(self.source_label)
         form.addRow(self.status_label)
-        form.addRow(QLabel("<b>Posizione e dimensione</b> (pixel di output)"))
+        form.addRow(self.position_label)
         form.addRow(geometry)
-        form.addRow(QLabel("<b>Crop</b> (pixel della sorgente)"))
+        form.addRow(self.crop_label)
         form.addRow(crop)
         actions = QHBoxLayout()
-        actions.addWidget(fit_btn)
-        actions.addWidget(reset_crop_btn)
+        actions.addWidget(self.fit_btn)
+        actions.addWidget(self.reset_crop_btn)
         form.addRow(actions)
 
-        self.props = QGroupBox("Proprietà")
+        self.props = QGroupBox()
         self.props.setLayout(form)
 
+        self.header = QLabel()
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("<b>Layer</b> — quello in cima alla lista è in primo piano.<br>"
-                                "Trascina un layer su o giù per cambiare l'ordine."))
+        layout.addWidget(self.header)
         layout.addWidget(self.list, 1)
         layout.addLayout(buttons)
         layout.addWidget(self.props)
+        self.retranslate()
         self._sync_enabled()
+
+    def retranslate(self) -> None:
+        """Sets all texts in the current language."""
+        self.header.setText(tr("<b>Layers</b> — the one at the top of the list is in front.<br>"
+                               "Drag a layer up or down to change the order."))
+        self.add_btn.setText(tr("+ Add"))
+        self.remove_btn.setText(tr("− Remove"))
+        self.up_btn.setToolTip(tr("Move up"))
+        self.down_btn.setToolTip(tr("Move down"))
+        self.mask_btn.setText(tr("Mask…"))
+        self.props.setTitle(tr("Properties"))
+        self.name_label.setText(tr("Name"))
+        self.position_label.setText(tr("<b>Position and size</b> (output pixels)"))
+        self.keep_aspect.setText(tr("Lock aspect ratio"))
+        self.flip_h.setText(tr("Mirror horizontally"))
+        self.flip_v.setText(tr("Mirror vertically"))
+        self.crop_label.setText(tr("<b>Crop</b> (source pixels)"))
+        for side, text in (("left", tr("Left")), ("right", tr("Right")), ("top", tr("Top")), ("bottom", tr("Bottom"))):
+            self.crop_labels[side].setText(text)
+        self.fit_btn.setText(tr("Fit to canvas"))
+        self.reset_crop_btn.setText(tr("Reset crop"))
+        self.rebuild()  # list tooltips and the source description
 
     # --- public ----------------------------------------------------------------
 
@@ -222,7 +252,7 @@ class LayersPanel(QWidget):
                     box.setValue(getattr(layer.crop, side))
             self.flip_h.setChecked(layer.transform.flip_h)
             self.flip_v.setChecked(layer.transform.flip_v)
-            self.mask_btn.setText("Mask… ●" if layer.mask is not None else "Mask…")
+            self.mask_btn.setText(tr("Mask…") + (" ●" if layer.mask is not None else ""))
         finally:
             self._updating = False
 

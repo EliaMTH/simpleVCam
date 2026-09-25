@@ -7,10 +7,10 @@ and shows them to other apps (Teams, Zoom, Meet in the browser, the Camera app) 
 
 Requires Windows 11 (64-bit).
 
-1. Download `simpleVCam-<version>-setup.exe` from the
+1. Download `simpleVCam-<last version>-setup.exe` from the
    [latest release](https://github.com/EliaMTH/simpleVCam/releases/latest) and run it. It asks for
    administrator rights because it registers the virtual camera with Windows.
-2. Open **simpleVCam** from the Start menu, add your sources and press **"Avvia camera"** (start camera).
+2. Open **simpleVCam** from the Start menu, add your sources and press **Start camera**.
 3. In Teams, Zoom, the browser, etc., pick **simpleVCam** as the camera.
 
 The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC": choose
@@ -21,12 +21,13 @@ To uninstall: Settings → Apps → Installed apps → simpleVCam.
 
 ## Usage
 
-The user interface is in Italian; the labels below are quoted as they appear in the app.
+The app is available in **English** and **Italian**: choose it from the **Language** menu in the top bar
+(the change is immediate and remembered). On the first start it follows the Windows language.
 
 - **Preview**: click to select a layer, drag it to move it, drag a corner to resize it
   (Shift = free aspect ratio). The arrow keys move it by 1 px (Shift: 10 px).
 - **Top bar**: save and load presets, output resolution and fps (15, 30, 60 or 120; the default is 60),
-  "Specchia uscita" to mirror the whole image sent to the camera, and the camera switch.
+  **Mirror output** to mirror the whole image sent to the camera, the language, and the camera switch.
 - **Layers**: the first one in the list is in front. To change the order, drag the layers in the list,
   or use ▲ and ▼. Position, size, mirroring (horizontal and vertical) and crop can also be set in the
   properties panel.
@@ -35,14 +36,13 @@ The user interface is in Italian; the labels below are quoted as they appear in 
   ellipse into a circle. The left mouse button applies the selected mode (hide by default), the right
   button the opposite. There are also show all, hide all and invert, Ctrl+Z to undo and Ctrl+wheel to zoom.
   The mask is applied before crop and mirroring, so it stays on the source content.
-- **"Avvia camera"** (start camera): creates the "simpleVCam" device, which disappears when you stop it or
-  close the app. DirectShow apps list it as "simpleVCam (Windows Virtual Camera)", with the suffix in the
-  Windows language (e.g. "Fotocamera virtuale di Windows" on Italian Windows).
+- **Start camera**: creates the "simpleVCam" device, which disappears when you stop it or close the app.
+  DirectShow apps list it as "simpleVCam (Windows Virtual Camera)", with the suffix in the Windows language.
 
 Notes:
 - A webcam used as a source stays busy while simpleVCam uses it: in the other apps, pick "simpleVCam".
 - Output resolution and fps are fixed while the camera is on. If you change them, the camera is recreated and
-  connected apps may need to select it again. "Specchia uscita" does not recreate it.
+  connected apps may need to select it again. **Mirror output** does not recreate it.
 - While the camera is on but no app is connected, the app sends no frames.
 
 ## Presets
@@ -149,6 +149,7 @@ The workflow fails if the tag doesn't match `__version__`. It can also be starte
   - `vcam.py`: camera control and shared memory
   - `sources/`: the sources
   - `ui/`: the user interface
+  - `i18n.py`: user interface texts and their Italian translations
   - `smoke.py`: self-check of a build
 - `native/`: the camera's C++ DLL, a Media Foundation media source derived from
   [VCamSample](https://github.com/smourier/VCamSample) (MIT). It reads frames from the shared section

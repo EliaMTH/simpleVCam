@@ -6,6 +6,8 @@ import os
 from ctypes import wintypes
 from dataclasses import dataclass
 
+from ..i18n import tr
+
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 dwmapi = ctypes.WinDLL("dwmapi")
@@ -49,8 +51,8 @@ class MonitorInfo:
 
     @property
     def label(self) -> str:
-        primary = " (principale)" if self.primary else ""
-        return f"Monitor {self.index}: {self.width}×{self.height}{primary}"
+        label = tr("Monitor {index}: {width}×{height}", index=self.index, width=self.width, height=self.height)
+        return label + (tr(" (primary)") if self.primary else "")
 
 
 @dataclass

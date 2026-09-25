@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..i18n import tr
 from ..model import SourceSpec
 from .wgc import WgcSource
 from .winutil import find_window, is_window, process_exe, window_pid, window_title
@@ -17,7 +18,7 @@ class WindowSource(WgcSource):
         if not is_window(self.hwnd):
             found = find_window(self.spec.title, self.spec.exe)
             if found is None:
-                self.status = f"finestra non trovata: {self.spec.title or self.spec.exe}"
+                self.status = tr("window not found: {name}", name=self.spec.title or self.spec.exe)
                 return None
             self.hwnd = found.hwnd
         # keep the spec current, so a saved preset finds the window again

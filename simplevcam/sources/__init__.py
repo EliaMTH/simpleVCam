@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..i18n import tr
 from ..model import SourceSpec
 from .base import Source
 
@@ -21,4 +22,4 @@ def create_source(spec: SourceSpec) -> Source:
         from .webcam import WebcamSource
 
         return WebcamSource(spec.index, spec.name)
-    raise ValueError(f"tipo di source sconosciuto: {spec.type!r}")
+    raise ValueError(tr("unknown source type: {type}", type=repr(spec.type)))

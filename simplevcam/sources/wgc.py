@@ -5,6 +5,7 @@ import threading
 
 from windows_capture import WindowsCapture
 
+from ..i18n import tr
 from .base import Source
 
 
@@ -58,7 +59,7 @@ class WgcSource(Source):
 
                 control = capture.start_free_threaded()
             except Exception as e:
-                self.status = f"cattura non riuscita: {e}"
+                self.status = tr("capture failed: {error}", error=e)
                 self._stop.wait(2)
                 continue
 

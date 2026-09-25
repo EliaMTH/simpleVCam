@@ -1,4 +1,4 @@
-"""Main window: top bar with presets, output format and camera switch; preview and layer panel below."""
+"""Main window: top bar with presets, output format, language and camera switch; preview and layer panel below."""
 from __future__ import annotations
 
 import sys
@@ -12,8 +12,10 @@ from ..engine import Engine
 from ..model import Layer, OutputSettings
 from ..presets import load_preset, save_preset
 from .. import __version__
+from ..i18n import LANGUAGES, language, tr
 from ..vcam import VCamError, not_installed_message
 from .add_source_dialog import AddSourceDialog
+from .language import apply_language
 from .layers_panel import LayersPanel
 from .mask_editor import MaskEditorDialog
 from .preview import PreviewWidget
@@ -46,17 +48,24 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 1)
         splitter.setSizes([1040, 360])
 
-        # top bar
-        save_btn = QPushButton("Salva preset…")
-        save_btn.clicked.connect(self.save_preset)
-        load_btn = QPushButton("Carica preset…")
-        load_btn.clicked.connect(self.load_preset)
+        # top bar (texts are set in retranslate())
+        self.save_btn = QPushButton()
+        self.save_btn.clicked.connect(self.save_preset)
+        self.load_btn = QPushButton()
+        self.load_btn.clicked.connect(self.load_preset)
 
+        self.language_label = QLabel()
+        self.language_combo = QComboBox()
+        for code, name in LANGUAGES.items():
+            self.language_combo.addItem(name, code)
+        self.language_combo.setCurrentIndex(self.language_combo.findData(language()))
+        self.language_combo.currentIndexChanged.connect(self._on_language_changed)
+
+        self.output_label = QLabel()
         self.resolution = QComboBox()
         for w, h in RESOLUTIONS:
             self.resolution.addItem(f"{w}×{h}", (w, h))
-        self.mirror = QCheckBox("Specchia uscita")
-        self.mirror.setToolTip("Specchia orizzontalmente tutta l'immagine inviata alla camera (e l'anteprima)")
+        self.mirror = QCheckBox()
         self.fps = QComboBox()
         for fps in FRAME_RATES:
             self.fps.addItem(f"{fps} fps", fps)
@@ -70,17 +79,19 @@ class MainWindow(QMainWindow):
         self.camera_btn.setMinimumWidth(170)
         self.camera_btn.toggled.connect(self._on_camera_toggled)
         self.camera_label = QLabel()
-        self._show_camera_state()
 
         bar = QHBoxLayout()
-        bar.addWidget(save_btn)
-        bar.addWidget(load_btn)
+        bar.addWidget(self.save_btn)
+        bar.addWidget(self.load_btn)
         bar.addSpacing(24)
-        bar.addWidget(QLabel("Output:"))
+        bar.addWidget(self.output_label)
         bar.addWidget(self.resolution)
         bar.addWidget(self.fps)
         bar.addSpacing(12)
         bar.addWidget(self.mirror)
+        bar.addSpacing(24)
+        bar.addWidget(self.language_label)
+        bar.addWidget(self.language_combo)
         bar.addStretch(1)
         bar.addWidget(self.camera_label)
         bar.addWidget(self.camera_btn)
@@ -111,9 +122,26 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self._periodic)
         self.timer.start(300)
 
+        self.retranslate()
         self.engine.start()
+
+    def retranslate(self) -> None:
+        """Sets all texts in the current language."""
+        self.save_btn.setText(tr("Save preset…"))
+        self.load_btn.setText(tr("Load preset…"))
+        self.output_label.setText(tr("Output:"))
+        self.mirror.setText(tr("Mirror output"))
+        self.mirror.setToolTip(tr("Mirrors the whole image sent to the camera (and the preview) horizontally"))
+        self.language_label.setText(tr("Language:"))
+        self._camera_state = None  # force the camera texts to be set again
+        self._show_camera_state()
+        self.panel.retranslate()
         if not self.engine.camera.available:
             self.statusBar().showMessage(not_installed_message())
+
+    def _on_language_changed(self) -> None:
+        apply_language(self.language_combo.currentData(), save=True)
+        self.retranslate()
 
     # --- layers ----------------------------------------------------------------
 
@@ -123,7 +151,7 @@ class MainWindow(QMainWindow):
             return
         result = dialog.result_spec()
         if result is None:
-            QMessageBox.warning(self, "simpleVCam", "Nessuna sorgente selezionata.")
+            QMessageBox.warning(self, "simpleVCam", tr("No source selected."))
             return
         spec, name = result
         layer = Layer(spec, name)
@@ -144,7 +172,7 @@ class MainWindow(QMainWindow):
             return
         frame = self.engine.latest_frame(layer_id)
         if frame is None and layer.source_size is None and layer.mask is None:
-            QMessageBox.information(self, "simpleVCam", "La sorgente non ha ancora prodotto immagini: la mask ha bisogno delle sue dimensioni.")
+            QMessageBox.information(self, "simpleVCam", tr("The source hasn't produced any image yet: the mask needs its size."))
             return
         dialog = MaskEditorDialog(layer, frame.copy() if frame is not None else None, self)
         if dialog.exec():
@@ -157,26 +185,26 @@ class MainWindow(QMainWindow):
         folder = default_preset_dir()
         folder.mkdir(parents=True, exist_ok=True)
         start = str(self.preset_path or folder / "preset.json")
-        path, _ = QFileDialog.getSaveFileName(self, "Salva preset", start, "Preset simpleVCam (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, tr("Save preset"), start, tr("simpleVCam presets (*.json)"))
         if not path:
             return
         try:
             save_preset(self.engine.scene, path)
         except Exception as e:
-            QMessageBox.critical(self, "simpleVCam", f"Salvataggio non riuscito:\n{e}")
+            QMessageBox.critical(self, "simpleVCam", tr("Saving failed:\n{error}", error=e))
             return
         self.preset_path = Path(path)
-        self.statusBar().showMessage(f"Preset salvato: {path}", 5000)
+        self.statusBar().showMessage(tr("Preset saved: {path}", path=path), 5000)
 
     def load_preset(self) -> None:
         start = str(self.preset_path.parent if self.preset_path else default_preset_dir())
-        path, _ = QFileDialog.getOpenFileName(self, "Carica preset", start, "Preset simpleVCam (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("Load preset"), start, tr("simpleVCam presets (*.json)"))
         if not path:
             return
         try:
             scene = load_preset(path)
         except Exception as e:
-            QMessageBox.critical(self, "simpleVCam", f"Caricamento non riuscito:\n{e}")
+            QMessageBox.critical(self, "simpleVCam", tr("Loading failed:\n{error}", error=e))
             return
         try:
             self.engine.set_scene(scene)
@@ -185,7 +213,7 @@ class MainWindow(QMainWindow):
         self.preset_path = Path(path)
         self._show_output(scene.output)
         self.panel.rebuild()
-        self.statusBar().showMessage(f"Preset caricato: {path}", 5000)
+        self.statusBar().showMessage(tr("Preset loaded: {path}", path=path), 5000)
 
     # --- output and camera -----------------------------------------------------
 
@@ -236,17 +264,17 @@ class MainWindow(QMainWindow):
     def _show_camera_state(self) -> None:
         running = self.engine.camera_running
         if not running:
-            text, color = "Camera spenta", "gray"
+            text, color = tr("Camera off"), "gray"
         elif self.engine.camera_connected:
-            text, color = "Camera accesa — in uso", "#3cb96a"
+            text, color = tr("Camera on — in use"), "#3cb96a"
         else:
-            text, color = "Camera accesa — nessuna app collegata", "#e0a030"
+            text, color = tr("Camera on — no app connected"), "#e0a030"
         state = (running, text)
         if state == getattr(self, "_camera_state", None):
             return  # called periodically: avoid re-applying style sheets
         self._camera_state = state
 
-        self.camera_btn.setText("■  Ferma camera" if running else "●  Avvia camera")
+        self.camera_btn.setText(tr("■  Stop camera") if running else tr("●  Start camera"))
         button = "#c0392b" if running else "#2e8b57"  # red: stop, green: start
         self.camera_btn.setStyleSheet(f"QPushButton {{ color: white; background: {button}; font-weight: bold; padding: 6px; "
                                       f"border: 1px solid #1c1d21; border-radius: 4px; }}")

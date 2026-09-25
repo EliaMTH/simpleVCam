@@ -6,6 +6,7 @@ Exit code 0 = all checks passed; the details go to the report file.
 """
 from __future__ import annotations
 
+import shutil
 import tempfile
 import time
 import traceback
@@ -109,10 +110,13 @@ def run(report_path: str | None) -> int:
 
         return installed_dll_path() or "not installed (not an error here)"
 
-    for name, fn in (("version", version), ("opencv", opencv), ("graphics capture", graphics_capture),
-                     ("directshow", directshow), ("monitors", monitors), ("windows", windows),
-                     ("presets", presets), ("window and render", window_and_render), ("camera dll", camera)):
-        check(name, fn)
+    try:
+        for name, fn in (("version", version), ("opencv", opencv), ("graphics capture", graphics_capture),
+                         ("directshow", directshow), ("monitors", monitors), ("windows", windows),
+                         ("presets", presets), ("window and render", window_and_render), ("camera dll", camera)):
+            check(name, fn)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     lines.append("RESULT: " + ("FAILED" if failed else "PASSED"))
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")

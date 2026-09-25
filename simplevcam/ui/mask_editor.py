@@ -8,6 +8,7 @@ from PySide6.QtGui import QColor, QImage, QKeySequence, QMouseEvent, QPainter, Q
 from PySide6.QtWidgets import (QButtonGroup, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QPushButton,
                                QRadioButton, QScrollArea, QSlider, QVBoxLayout, QWidget)
 
+from ..i18n import tr
 from ..model import Layer
 
 MAX_UNDO = 20
@@ -168,7 +169,7 @@ class _ScrollArea(QScrollArea):
 class MaskEditorDialog(QDialog):
     def __init__(self, layer: Layer, frame: np.ndarray | None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Mask — {layer.name}")
+        self.setWindowTitle(tr("Mask — {name}", name=layer.name))
         self.layer = layer
         self.removed = False
 
@@ -198,8 +199,8 @@ class MaskEditorDialog(QDialog):
         # tools
         tools = QButtonGroup(self)
         tool_row = QHBoxLayout()
-        tool_row.addWidget(QLabel("Strumento:"))
-        for key, label in (("brush", "Pennello"), ("rect", "Rettangolo"), ("ellipse", "Ellisse")):
+        tool_row.addWidget(QLabel(tr("Tool:")))
+        for key, label in (("brush", tr("Brush")), ("rect", tr("Rectangle")), ("ellipse", tr("Ellipse"))):
             b = QRadioButton(label)
             b.setChecked(key == self.tool)
             b.toggled.connect(lambda on, k=key: on and self._set_tool(k))
@@ -208,8 +209,8 @@ class MaskEditorDialog(QDialog):
         tool_row.addSpacing(20)
 
         modes = QButtonGroup(self)
-        tool_row.addWidget(QLabel("Tasto sinistro:"))
-        for value, label in ((0, "nasconde"), (255, "rende visibile")):
+        tool_row.addWidget(QLabel(tr("Left button:")))
+        for value, label in ((0, tr("hides")), (255, tr("makes visible"))):
             b = QRadioButton(label)
             b.setChecked(value == self.paint_value)
             b.toggled.connect(lambda on, v=value: on and self._set_paint_value(v))
@@ -223,7 +224,7 @@ class MaskEditorDialog(QDialog):
         self.size_slider.setValue(self.brush_size)
         self.size_slider.valueChanged.connect(self._set_brush_size)
         self.size_slider.setFixedWidth(160)
-        tool_row.addWidget(QLabel("Pennello:"))
+        tool_row.addWidget(QLabel(tr("Brush:")))
         tool_row.addWidget(self.size_slider)
         tool_row.addWidget(self.size_label)
         tool_row.addStretch(1)
@@ -231,13 +232,13 @@ class MaskEditorDialog(QDialog):
 
         # actions
         action_row = QHBoxLayout()
-        for label, slot in (("Mostra tutto", self._fill_all), ("Nascondi tutto", self._clear_all), ("Inverti", self._invert),
-                            ("Annulla (Ctrl+Z)", self.undo)):
+        for label, slot in ((tr("Show all"), self._fill_all), (tr("Hide all"), self._clear_all), (tr("Invert"), self._invert),
+                            (tr("Undo (Ctrl+Z)"), self.undo)):
             b = QPushButton(label)
             b.clicked.connect(slot)
             action_row.addWidget(b)
         action_row.addSpacing(20)
-        for label, slot in (("Adatta", self.fit_zoom), ("100%", lambda: self.canvas.set_zoom(1.0))):
+        for label, slot in ((tr("Fit"), self.fit_zoom), ("100%", lambda: self.canvas.set_zoom(1.0))):
             b = QPushButton(label)
             b.clicked.connect(slot)
             action_row.addWidget(b)
@@ -251,7 +252,7 @@ class MaskEditorDialog(QDialog):
 
         QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
 
-        remove = QPushButton("Rimuovi mask")
+        remove = QPushButton(tr("Remove mask"))
         remove.clicked.connect(self._remove)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -299,25 +300,24 @@ class MaskEditorDialog(QDialog):
         self._update_help()
 
     def _update_help(self) -> None:
-        show = "rende <b>VISIBILE</b> (toglie il rosso)"
-        hide = "<b>NASCONDE</b> (colora di rosso)"
+        show = tr("makes it <b>VISIBLE</b> (removes the red)")
+        hide = tr("<b>HIDES</b> it (paints it red)")
         left, right = (show, hide) if self.paint_value == 255 else (hide, show)
         tool = {
-            "brush": "<b>Pennello:</b> tieni premuto il tasto e trascina per dipingere; "
-                     "la dimensione si regola con il cursore «Pennello».",
-            "rect": "<b>Rettangolo:</b> trascina da un angolo a quello opposto; "
-                    "quando rilasci il tasto, il rettangolo viene riempito. Tieni premuto <b>Ctrl</b> per un quadrato.",
-            "ellipse": "<b>Ellisse:</b> trascina per disegnare il riquadro che contiene l'ellisse; "
-                       "quando rilasci il tasto, l'ellisse viene riempita. Tieni premuto <b>Ctrl</b> per un cerchio.",
+            "brush": tr("<b>Brush:</b> hold the button down and drag to paint; set the size with the «Brush» slider."),
+            "rect": tr("<b>Rectangle:</b> drag from one corner to the opposite one; the rectangle is filled when you "
+                       "release the button. Hold <b>Ctrl</b> for a square."),
+            "ellipse": tr("<b>Ellipse:</b> drag to draw the box that contains the ellipse; the ellipse is filled when "
+                          "you release the button. Hold <b>Ctrl</b> for a circle."),
         }[self.tool]
-        self.help.setText(
-            "<b>Come leggere l'immagine:</b> le zone <span style='color:#ff6b6b'><b>rosse</b></span> "
-            "saranno <b>nascoste</b> nella camera, tutto il resto sarà visibile.<br>"
-            f"<b>Tasto sinistro del mouse:</b> {left}. &nbsp; <b>Tasto destro:</b> {right}.<br>"
-            f"{tool}<br>"
-            "<b>Zoom:</b> Ctrl + rotella del mouse, oppure «Adatta» e «100%». &nbsp; <b>Annulla:</b> Ctrl+Z. &nbsp; "
-            "Il riquadro giallo tratteggiato, se presente, è il crop del layer."
-        )
+        self.help.setText("<br>".join((
+            tr("<b>How to read the image:</b> <span style='color:#ff6b6b'><b>red</b></span> areas will be "
+               "<b>hidden</b> in the camera, everything else will be visible."),
+            tr("<b>Left mouse button:</b> {left}. &nbsp; <b>Right button:</b> {right}.", left=left, right=right),
+            tool,
+            tr("<b>Zoom:</b> Ctrl + mouse wheel, or «Fit» and «100%». &nbsp; <b>Undo:</b> Ctrl+Z. &nbsp; "
+               "The dashed yellow frame, if present, is the layer's crop."),
+        )))
 
     def _set_brush_size(self, size: int) -> None:
         self.brush_size = size

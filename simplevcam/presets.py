@@ -11,6 +11,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from .i18n import tr
 from .model import Crop, Layer, OutputSettings, Scene, SourceSpec, Transform
 
 PRESET_VERSION = 1
@@ -24,7 +25,7 @@ def write_png(path: Path, image: np.ndarray) -> None:
     # cv2.imwrite does not handle non-ASCII paths on Windows
     ok, data = cv2.imencode(".png", image)
     if not ok:
-        raise OSError(f"impossibile codificare {path.name}")
+        raise OSError(tr("cannot encode {name}", name=path.name))
     path.write_bytes(data.tobytes())
 
 
@@ -72,7 +73,7 @@ def load_preset(path: str | Path) -> Scene:
     data = json.loads(path.read_text(encoding="utf-8"))
     version = data.get("version", 1)
     if version > PRESET_VERSION:
-        raise ValueError(f"preset versione {version} non supportato (massimo {PRESET_VERSION})")
+        raise ValueError(tr("preset version {version} not supported (maximum {maximum})", version=version, maximum=PRESET_VERSION))
 
     scene = Scene(output=OutputSettings.from_dict(data.get("output", {})))
     for d in data.get("layers", []):
@@ -87,7 +88,7 @@ def load_preset(path: str | Path) -> Scene:
         if d.get("mask"):
             mask = read_image(path.parent / d["mask"], cv2.IMREAD_GRAYSCALE)
             if mask is None:
-                raise ValueError(f"mask non leggibile: {d['mask']}")
+                raise ValueError(tr("unreadable mask: {path}", path=d["mask"]))
             layer.set_mask(mask)
         scene.layers.append(layer)
     return scene

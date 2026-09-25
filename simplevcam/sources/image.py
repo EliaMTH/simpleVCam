@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ..i18n import tr
 from ..presets import read_image
 from .base import Source
 
@@ -30,4 +31,4 @@ class ImageSource(Source):
             self._frame = load_bgra_or_bgr(self.path)
         except OSError:
             self._frame = None
-        self.status = "" if self._frame is not None else f"immagine non trovata: {self.path}"
+        self.status = "" if self._frame is not None else tr("image not found: {path}", path=self.path)

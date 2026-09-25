@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .i18n import tr
+
 SOURCE_TYPES = ("screen", "window", "image", "webcam")
 
 
@@ -104,7 +106,7 @@ class SourceSpec:
     @classmethod
     def from_dict(cls, d: dict) -> SourceSpec:
         if d.get("type") not in SOURCE_TYPES:
-            raise ValueError(f"tipo di source sconosciuto: {d.get('type')!r}")
+            raise ValueError(tr("unknown source type: {type}", type=repr(d.get("type"))))
         known = {k: d[k] for k in vars(cls("screen")) if k in d and k != "hwnd"}
         return cls(**known)
 
@@ -125,7 +127,7 @@ class Layer:
     def set_mask(self, mask: np.ndarray | None) -> None:
         if mask is not None:
             if mask.ndim != 2:
-                raise ValueError("la mask deve essere un'immagine a un canale")
+                raise ValueError(tr("the mask must be a single-channel image"))
             mask = np.where(mask > 127, 255, 0).astype(np.uint8)
         self.mask = mask
         self.mask_version += 1
