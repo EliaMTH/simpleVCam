@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 1)
         splitter.setSizes([1040, 360])
 
-        # bottom bar
+        # top bar
         save_btn = QPushButton("Salva preset…")
         save_btn.clicked.connect(self.save_preset)
         load_btn = QPushButton("Carica preset…")
