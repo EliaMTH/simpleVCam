@@ -3,18 +3,28 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage
 
+from .animations import AnimationPlayer, Slot
 from .compositor import Compositor, new_canvas
-from .model import Layer, OutputSettings, Scene
+from .model import AnimationPlacement, Layer, OutputSettings, Scene, animation_placement
 from .sources import Source, create_source
 from .vcam import VirtualCamera
 
 PREVIEW_MAX_FPS = 60
+
+
+@dataclass
+class _Playback:
+    """An animation playing over the output."""
+
+    player: AnimationPlayer
+    default: Layer  # its placement while the scene has none for the slot: own size, centered
 
 
 class Engine(QObject):
@@ -30,6 +40,9 @@ class Engine(QObject):
         self._camera_lock = threading.Lock()
         self._sources: dict[str, Source] = {}
         self._pending_fit: set[str] = set()
+        self._playbacks: dict[int, _Playback] = {}  # slot -> playing animation, in start order (the last on top)
+        self._animation_errors: dict[int, str] = {}  # slot -> why its last playback stopped early
+        self._editing: int | None = None  # slot being positioned: looped, shown in the preview only
         self._compositor = Compositor()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -99,6 +112,97 @@ class Engine(QObject):
         self._sources[layer.id] = source
         source.start()
 
+    def pickable_layers(self) -> list[Layer]:
+        """Layers the preview can select, bottom to top: the scene's, then the animation being positioned."""
+        with self._lock:
+            layers = list(self.scene.layers)
+            placement = self.scene.animations.get(self._editing) if self._editing is not None else None
+        return layers + [placement] if placement is not None else layers
+
+    # --- animations ------------------------------------------------------------
+
+    def play_animation(self, slot: Slot) -> None:
+        """Plays the slot's animation over all layers, as many times as its placement says (once without one);
+        playing it again restarts it."""
+        if slot.playable:
+            placement = self.scene.animations.get(slot.index)
+            self._start_playback(slot, placement.plays if placement is not None else 1)
+
+    def stop_animation(self, index: int) -> None:
+        with self._lock:
+            playback = self._playbacks.pop(index, None)
+        if playback:
+            playback.player.stop()
+
+    def animation_playing(self, index: int) -> bool:
+        playback = self._playbacks.get(index)
+        return playback is not None and not playback.player.finished
+
+    def animation_error(self, index: int) -> str:
+        """Why the last playback of the slot stopped early, or ""."""
+        return self._animation_errors.get(index, "")
+
+    def animation_layer(self, slot: Slot) -> AnimationPlacement:
+        """The slot's placement in the scene, created (own size, centered) if missing: presets then save it."""
+        with self._lock:
+            layer = self.scene.animations.get(slot.index)
+            if layer is None:
+                layer = animation_placement(slot.index)
+                layer.source_size = slot.size
+                layer.center_native(self.scene.output)
+                self.scene.animations[slot.index] = layer
+            elif slot.size:
+                layer.source_size = slot.size  # the file may have changed since the last frame
+        return layer
+
+    def edit_animation(self, slot: Slot | None) -> None:
+        """Loops the slot's animation while it is being positioned: in the preview only, the camera never gets it.
+        None ends the positioning."""
+        if self._editing is not None:
+            self.stop_animation(self._editing)  # first, or the loop would reach the camera for a frame
+        with self._lock:
+            self._editing = slot.index if slot is not None else None
+        if slot is not None and slot.playable:
+            self._start_playback(slot, plays=None)
+
+    def _start_playback(self, slot: Slot, plays: int | None) -> None:
+        default = animation_placement(slot.index)
+        default.source_size = slot.size
+        default.center_native(self.scene.output)
+        player = AnimationPlayer(slot.data, plays)
+        with self._lock:
+            previous = self._playbacks.pop(slot.index, None)
+            self._playbacks[slot.index] = _Playback(player, default)  # (re)inserted last: drawn on top
+            self._animation_errors.pop(slot.index, None)
+            player.start()
+        if previous:
+            previous.player.stop()
+
+    def _animation_layers(self, frames: dict[str, np.ndarray | None]) -> tuple[list[Layer], Layer | None]:
+        """Placements of the playing animations, bottom to top, and of the one being positioned (or None); adds
+        their current frames to `frames` and forgets the finished ones. Called with the lock held."""
+        playing, editing = [], None
+        for index, playback in list(self._playbacks.items()):
+            player = playback.player
+            if player.finished:
+                del self._playbacks[index]
+                if player.status:
+                    self._animation_errors[index] = player.status
+                continue
+            frame = player.latest_frame()
+            if frame is None:
+                continue
+            layer = self.scene.animations.get(index)  # looked up every frame: a loaded preset applies at once
+            if layer is None:
+                layer = playback.default
+            layer.source_size = (frame.shape[1], frame.shape[0])
+            frames[layer.id] = frame
+            if index == self._editing:
+                editing = layer
+            else:
+                playing.append(layer)
+        return playing, editing
+
     # --- camera ----------------------------------------------------------------
 
     @property
@@ -140,6 +244,10 @@ class Engine(QObject):
             for source in self._sources.values():
                 source.stop()
             self._sources.clear()
+            playbacks = list(self._playbacks.values())
+            self._playbacks.clear()
+        for playback in playbacks:
+            playback.player.stop()
 
     def _run(self) -> None:
         canvas = None
@@ -161,10 +269,12 @@ class Engine(QObject):
                             layer.fit_to(out)
                             self._pending_fit.discard(layer.id)
                             fitted = True
+                animations, editing = self._animation_layers(frames)
 
             if canvas is None or canvas.shape[:2] != (out.height, out.width):
                 canvas = new_canvas(out.width, out.height)
-            self._compositor.compose(canvas, layers, frames)
+            # animations go over all layers, before the output mirroring like everything else
+            self._compositor.compose(canvas, layers + animations, frames)
             result = cv2.flip(canvas, 1) if out.mirror else canvas
 
             with self._camera_lock:
@@ -175,7 +285,13 @@ class Engine(QObject):
 
             # the camera gets every frame; the preview at most PREVIEW_MAX_FPS (repainting costs GUI time)
             if frames_done % max(1, round(out.fps / PREVIEW_MAX_FPS)) == 0:
-                image = QImage(result.data, out.width, out.height, out.width * 4, QImage.Format.Format_RGB32).copy()
+                shown = result
+                if editing is not None:  # the animation being positioned: added to the preview only
+                    shown = canvas.copy()
+                    self._compositor.draw(shown, [editing], frames)
+                    if out.mirror:
+                        shown = cv2.flip(shown, 1)
+                image = QImage(shown.data, out.width, out.height, out.width * 4, QImage.Format.Format_RGB32).copy()
                 self.preview_ready.emit(image)
             if fitted:
                 self.layers_changed.emit()

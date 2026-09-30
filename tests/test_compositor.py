@@ -134,3 +134,12 @@ def test_flip_vertical_with_clipping():
     # mirrored: white at the bottom (layer rows 8-9 -> canvas rows 3-4)
     assert (canvas[3:5, :4, :3] == 255).all()
     assert (canvas[0:3, :4, :3] == 0).all()
+
+
+def test_draw_keeps_what_is_there():
+    canvas = new_canvas(20, 20)
+    canvas[..., :3] = 50
+    l = layer(5, 5)
+    Compositor().draw(canvas, [l], {l.id: solid(5, 5, (200, 200, 200))})
+    assert (canvas[5:10, 5:10, :3] == 200).all()
+    assert (canvas[:5, :, :3] == 50).all() and (canvas[10:, :, :3] == 50).all()

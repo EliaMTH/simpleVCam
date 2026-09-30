@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from simplevcam.model import Crop, Layer, OutputSettings, Scene, SourceSpec, Transform
+from simplevcam.model import Crop, Layer, OutputSettings, Scene, SourceSpec, Transform, animation_placement
 from simplevcam.presets import load_preset, save_preset
 
 
@@ -99,3 +99,53 @@ def test_fit_keeps_mirroring():
 def test_old_presets_without_mirroring_load():
     assert Transform.from_dict({"x": 1, "y": 2, "scale_x": 0.5, "scale_y": 0.5}).flip_h is False
     assert OutputSettings.from_dict({"width": 640, "height": 480, "fps": 30}).mirror is False
+
+
+def test_animation_placements_roundtrip(tmp_path):
+    scene = make_scene()
+    placement = animation_placement(3)
+    placement.transform = Transform(12, 34, 0.5, 0.25, flip_h=True)
+    placement.crop = Crop(1, 2, 3, 4)
+    placement.plays = 4
+    scene.animations[3] = placement
+    save_preset(scene, tmp_path / "p.json")
+    loaded = load_preset(tmp_path / "p.json")
+    assert list(loaded.animations) == [3]
+    copy = loaded.animations[3]
+    assert copy.transform == placement.transform and copy.crop == placement.crop and copy.plays == 4
+    assert loaded.layer_by_id(copy.id) is copy
+
+
+def test_presets_without_animations_load(tmp_path):
+    path = tmp_path / "old.json"
+    path.write_text(json.dumps({"version": 1, "output": {"width": 1280, "height": 720, "fps": 30}, "layers": []}),
+                    encoding="utf-8")
+    assert load_preset(path).animations == {}
+
+
+def test_unknown_animation_slots_are_ignored(tmp_path):
+    placement = {"transform": {"x": 5}, "crop": {}}
+    path = tmp_path / "p.json"
+    path.write_text(json.dumps({"version": 1, "layers": [],
+                                "animations": {"0": placement, "2": placement, "10": placement, "x": placement}}),
+                    encoding="utf-8")
+    animations = load_preset(path).animations
+    assert list(animations) == [2] and animations[2].transform.x == 5
+
+
+def test_animation_plays_stay_between_1_and_10(tmp_path):
+    path = tmp_path / "p.json"
+    path.write_text(json.dumps({"version": 1, "layers": [],
+                                "animations": {"1": {"plays": 0}, "2": {"plays": 99}, "3": {}}}), encoding="utf-8")
+    animations = load_preset(path).animations
+    assert [animations[i].plays for i in (1, 2, 3)] == [1, 10, 1]
+
+
+def test_center_native():
+    layer = animation_placement(1)
+    layer.source_size = (400, 300)
+    layer.crop = Crop(left=100)
+    layer.transform = Transform(5, 5, 2, 2, flip_h=True)
+    layer.center_native(OutputSettings(1280, 720))
+    assert layer.display_rect() == (490, 210, 300, 300)
+    assert layer.transform.flip_h

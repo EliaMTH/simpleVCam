@@ -2,6 +2,7 @@ import ctypes
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -29,6 +30,7 @@ def main() -> int:
 
     window = MainWindow()
     window.show()
+    QTimer.singleShot(0, window.load_startup_preset)  # once the window is up, so a warning shows over it
     return app.exec()
 
 

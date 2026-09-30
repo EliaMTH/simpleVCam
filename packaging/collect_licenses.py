@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Python packages bundled by PyInstaller (see requirements.txt)
 PACKAGES = ["PySide6", "PySide6_Essentials", "shiboken6", "numpy", "opencv-python", "windows-capture",
-            "pygrabber", "comtypes"]
+            "pygrabber", "comtypes", "pillow"]
 # texts not shipped inside the packages
 EXTRA = {
     "Qt-PySide6": [ROOT / "packaging" / "licenses" / "LGPL-3.0.txt", ROOT / "packaging" / "licenses" / "GPL-3.0.txt"],

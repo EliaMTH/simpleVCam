@@ -30,13 +30,17 @@ class Compositor:
         if self._black is None or self._black.shape != canvas.shape:
             self._black = new_canvas(canvas.shape[1], canvas.shape[0])
         np.copyto(canvas, self._black)  # much faster than per-channel assignment
+        self.draw(canvas, layers, frames)
+        live = {l.id for l in layers}
+        for stale in self._mask_cache.keys() - live:
+            del self._mask_cache[stale]
+
+    def draw(self, canvas: np.ndarray, layers: list[Layer], frames: dict[str, np.ndarray | None]) -> None:
+        """Draws `layers` bottom to top over what `canvas` already shows."""
         for layer in layers:
             frame = frames.get(layer.id)
             if frame is not None:
                 self._draw(canvas, layer, frame)
-        live = {l.id for l in layers}
-        for stale in self._mask_cache.keys() - live:
-            del self._mask_cache[stale]
 
     def _draw(self, canvas: np.ndarray, layer: Layer, frame: np.ndarray) -> None:
         sh, sw = frame.shape[:2]

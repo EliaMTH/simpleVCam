@@ -26,11 +26,15 @@ The app is available in **English** and **Italian**: choose it from the **Langua
 
 - **Preview**: click to select a layer, drag it to move it, drag a corner to resize it
   (Shift = free aspect ratio). The arrow keys move it by 1 px (Shift: 10 px).
-- **Top bar**: save and load presets, output resolution and fps (15, 30, 60 or 120; the default is 60),
-  **Mirror output** to mirror the whole image sent to the camera, the language, and the camera switch.
+- **Top bar**: the magic wand that shows the [animations](#animations) panel, save and load presets, output
+  resolution and fps (15, 30, 60 or 120; the default is 60), **Mirror output** to mirror the whole image sent to
+  the camera, the language, **Options** and the camera switch.
+- **Options**: **Load a preset at startup** opens the chosen preset every time the app starts. If the file is
+  missing, the app says so and starts without it.
 - **Layers**: the first one in the list is in front. To change the order, drag the layers in the list,
   or use ▲ and ▼. Position, size, mirroring (horizontal and vertical) and crop can also be set in the
-  properties panel.
+  properties panel. A webcam is added mirrored horizontally, as people are used to seeing themselves: untick
+  **Mirror horizontally** to show it as the webcam sees it.
 - **Mask**: a binary image as large as the source, where red marks the hidden area.
   The tools are brush, rectangle and ellipse; holding Ctrl turns the rectangle into a square and the
   ellipse into a circle. The left mouse button applies the selected mode (hide by default), the right
@@ -44,6 +48,51 @@ Notes:
 - Output resolution and fps are fixed while the camera is on. If you change them, the camera is recreated and
   connected apps may need to select it again. **Mirror output** does not recreate it.
 - While the camera is on but no app is connected, the app sends no frames.
+
+## Animations
+
+The animations panel (the magic wand in the top bar) has nine buttons: each plays a short animation over all the
+layers, in the camera and in the preview, once or up to 10 times in a row. Clicking a button again restarts its
+animation, and several animations can play together. Transparency is kept: think of a lightbulb that appears,
+lights up and disappears.
+
+Each button is a folder: `Documents\simpleVCam\animations\1` … `9` (`animations\` in the repository when run from
+the sources). The app creates them, with a README, the first time the panel is shown; **Open folder** opens them.
+In each folder put:
+- the animation: an animated **WebP** (recommended), **APNG** or **GIF** file, with any name;
+- optionally `icon.png` (or `.jpg`, `.webp`, `.bmp`, `.ico`): the icon of the button, which otherwise shows its number.
+
+After changing the files, press **Reload**. An empty button opens its folder; a button marked ⚠ has a file that
+can't be played, and its tooltip says why.
+
+An animation plays once, at its own size, centered. **✎ Adjust** shows the settings of the button clicked next:
+**Play** (once to 10 times in a row) and the controls of a layer (position, size, mirroring, crop,
+**Fit to canvas**, **1:1 centered**). While it is being adjusted, the animation loops in the preview only (the
+camera doesn't show it) and can be dragged there like a layer. Presets save these settings; with a preset that
+doesn't have them, animations play once, centered.
+**Mirror output** mirrors the animations too, like everything else: to keep a text readable, mirror the animation
+back with **✎ Adjust**.
+
+### Making animations
+
+- **Format**: WebP and APNG keep 8-bit transparency (soft edges, glows, shadows); GIF pixels are either fully
+  visible or fully hidden, so edges look jagged. WebP files are the smallest. 25-30 fps is plenty.
+- **Placement**: make the animation as large as the output (e.g. 1280×720) with a transparent background and draw
+  the object where it should appear, or crop it around the object and place it with **✎ Adjust**.
+- **Tools**:
+  - [ffmpeg](https://ffmpeg.org/) converts videos with transparency (WebM VP9, MOV ProRes 4444) and PNG sequences:
+    ```bat
+    ffmpeg -c:v libvpx-vp9 -i in.webm -c:v libwebp_anim -pix_fmt yuva420p -quality 85 -loop 0 out.webp
+    ffmpeg -i in.mov -c:v libwebp_anim -pix_fmt yuva420p -quality 85 -loop 0 out.webp
+    ffmpeg -framerate 30 -i frame_%04d.png -c:v libwebp_anim -pix_fmt yuva420p -quality 85 -loop 0 out.webp
+    ```
+    For WebM, `-c:v libvpx-vp9` before `-i` is needed: ffmpeg's own VP9 decoder drops the transparency.
+    `-lossless 1 -pix_fmt bgra` instead of `-pix_fmt yuva420p -quality 85` keeps every pixel, in bigger files.
+  - `img2webp` and `gif2webp`, the command line tools of [libwebp](https://developers.google.com/speed/webp/download).
+  - [ezgif.com](https://ezgif.com/) converts between GIF, APNG and WebP online, and resizes or changes the speed.
+  - [GIMP](https://www.gimp.org/): each layer is a frame; export as `.webp` with "As animation".
+  - Krita, Blender, After Effects, …: export a PNG sequence with transparency, then convert it with ffmpeg.
+  - Ready-made animations: LottieFiles, GIPHY stickers.
 
 ## Presets
 
@@ -64,9 +113,20 @@ the app run from the sources in `presets\`.
       "crop": {"left": 0, "top": 0, "right": 0, "bottom": 0},
       "mask": "my_preset_masks/a1b2c3d4.png"
     }
-  ]
+  ],
+  "animations": {
+    "3": {
+      "transform": {"x": 100, "y": 50, "scale_x": 1.0, "scale_y": 1.0, "flip_h": false, "flip_v": false},
+      "crop": {"left": 0, "top": 0, "right": 0, "bottom": 0},
+      "plays": 3
+    }
+  }
 }
 ```
+
+`animations` holds, by button number, the settings of the animations changed with **✎ Adjust**: where they go and
+how many times in a row they play (`plays`, 1 to 10). The others play once, centered at their own size.
+The animation files are not part of the preset.
 
 `source` types and the fields they use:
 
@@ -147,6 +207,7 @@ The workflow fails if the tag doesn't match `__version__`. It can also be starte
   - `compositor.py`: mask → crop → scale → mirror → position
   - `engine.py`: rendering loop
   - `vcam.py`: camera control and shared memory
+  - `animations.py`: the animations of the panel: slot folders, decoding and playback
   - `sources/`: the sources
   - `ui/`: the user interface
   - `i18n.py`: user interface texts and their Italian translations

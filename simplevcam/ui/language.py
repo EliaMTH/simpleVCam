@@ -1,21 +1,18 @@
 """UI language: the choice saved between sessions and Qt's own translations (standard dialog buttons)."""
 from __future__ import annotations
 
-from PySide6.QtCore import QLibraryInfo, QLocale, QSettings, QTranslator
+from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtWidgets import QApplication
 
 from ..i18n import LANGUAGES, set_language
+from .settings import settings
 
 _qt_translator: QTranslator | None = None
 
 
-def _settings() -> QSettings:
-    return QSettings("simpleVCam", "simpleVCam")  # HKCU\Software\simpleVCam
-
-
 def initial_language() -> str:
     """The saved choice, or the Windows language on the first run (English if not supported)."""
-    saved = _settings().value("language", "")
+    saved = settings().value("language", "")
     if saved in LANGUAGES:
         return saved
     return "it" if QLocale.system().language() == QLocale.Language.Italian else "en"
@@ -35,4 +32,4 @@ def apply_language(code: str, save: bool = False) -> None:
             app.installTranslator(translator)
             _qt_translator = translator
     if save:
-        _settings().setValue("language", code)
+        settings().setValue("language", code)

@@ -53,6 +53,41 @@ ITALIAN = {
     "Camera on — no app connected": "Camera accesa — nessuna app collegata",
     "■  Stop camera": "■  Ferma camera",
     "●  Start camera": "●  Avvia camera",
+    "⚙ Options…": "⚙ Opzioni…",
+    "Animations: show or hide the panel": "Animazioni: mostra o nascondi il pannello",
+    "Startup preset not found:\n{path}": "Preset di avvio non trovato:\n{path}",
+    # options
+    "Options": "Opzioni",
+    "Startup": "Avvio",
+    "Load a preset at startup": "Carica un preset all'avvio",
+    "Preset file (.json)": "File del preset (.json)",
+    "Preset to load at startup": "Preset da caricare all'avvio",
+    "Choose the preset to load at startup.": "Scegli il preset da caricare all'avvio.",
+    # animations panel
+    "<b>Animations</b> — click a button to play its animation.":
+        "<b>Animazioni</b> — clicca un pulsante per riprodurne l'animazione.",
+    "Open folder": "Apri cartella",
+    "Reload": "Ricarica",
+    "Reads the slot folders again, after changing their files": "Rilegge le cartelle degli slot, dopo averne cambiato i file",
+    "✎ Adjust": "✎ Regola",
+    "How many times an animation plays, where it appears, its size, crop and mirroring; presets save them":
+        "Quante volte parte un'animazione, dove appare, dimensione, ritaglio e specchiatura; i preset li salvano",
+    "Settings": "Impostazioni",
+    "Play:": "Riproduci:",
+    "How many times in a row the animation plays when you click it":
+        "Quante volte di fila parte l'animazione quando la clicchi",
+    "once": "una volta",
+    "{count} times": "{count} volte",
+    "1:1 centered": "1:1 centrata",
+    "The animation at its own size, in the center": "L'animazione alla sua dimensione, al centro",
+    "Empty: put an animation (WebP, APNG or GIF) and icon.png in\n{folder}\nClick to open the folder.":
+        "Vuoto: metti un'animazione (WebP, APNG o GIF) e icon.png in\n{folder}\nClicca per aprire la cartella.",
+    "Click an animation to adjust it. Meanwhile it loops in the preview only: the camera doesn't show it.":
+        "Clicca un'animazione per regolarla. Intanto gira in loop solo nell'anteprima: la camera non la mostra.",
+    "Animation {index}: drag it in the preview, or use the fields below. The camera doesn't show it until you play it.":
+        "Animazione {index}: trascinala nell'anteprima o usa i campi qui sotto. La camera non la mostra finché non "
+        "la riproduci.",
+    "Cannot read the animations folder:\n{error}": "Impossibile leggere la cartella delle animazioni:\n{error}",
     # layers panel
     "Screen": "Schermo",
     "Window": "Finestra",
@@ -156,4 +191,8 @@ ITALIAN = {
     "preset version {version} not supported (maximum {maximum})":
         "preset versione {version} non supportato (massimo {maximum})",
     "unreadable mask: {path}": "mask non leggibile: {path}",
+    # animations
+    "not an animation (a single image): {name}": "non è un'animazione (è un'immagine singola): {name}",
+    "not a WebP, APNG or GIF image: {name}": "non è un'immagine WebP, APNG o GIF: {name}",
+    "animation not readable: {error}": "animazione non leggibile: {error}",
 }

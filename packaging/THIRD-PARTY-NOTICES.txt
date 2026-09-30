@@ -26,6 +26,11 @@ comtypes
   License: MIT
   https://github.com/enthought/comtypes
 
+Pillow (reads the animations: animated WebP, APNG, GIF)
+  License: MIT-CMU (and, for the image libraries it bundles, such as libwebp, libpng and zlib, the licenses
+  included in its license file)
+  https://python-pillow.github.io/
+
 Python
   License: Python Software Foundation License
   https://www.python.org/

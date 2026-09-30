@@ -1,4 +1,5 @@
-"""Main window: top bar with presets, output format, language and camera switch; preview and layer panel below."""
+"""Main window: top bar with presets, output format, language, options and camera switch;
+animations panel (hidden by default), preview and layer panel below."""
 from __future__ import annotations
 
 import sys
@@ -15,10 +16,13 @@ from .. import __version__
 from ..i18n import LANGUAGES, language, tr
 from ..vcam import VCamError, not_installed_message
 from .add_source_dialog import AddSourceDialog
+from .animations_panel import AnimationsPanel, magic_wand_icon
 from .language import apply_language
 from .layers_panel import LayersPanel
 from .mask_editor import MaskEditorDialog
+from .options_dialog import OptionsDialog
 from .preview import PreviewWidget
+from .settings import animations_panel_visible, set_animations_panel_visible, startup_preset
 
 RESOLUTIONS = [(640, 360), (640, 480), (854, 480), (1280, 720), (1920, 1080)]
 FRAME_RATES = [15, 30, 60, 120]
@@ -30,25 +34,43 @@ def default_preset_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "presets"
 
 
+def animations_dir() -> Path:
+    """The folder with the nine animation slots."""
+    if getattr(sys, "frozen", False):
+        return Path.home() / "Documents" / "simpleVCam" / "animations"
+    return Path(__file__).resolve().parents[2] / "animations"
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"simpleVCam {__version__}")
         self.resize(1400, 820)
         self.preset_path: Path | None = None
+        self._editing_animation: str | None = None  # id of the animation placement being positioned
 
         self.engine = Engine()
         self.preview = PreviewWidget(self.engine)
         self.panel = LayersPanel(self.engine)
         self.panel.setMinimumWidth(340)
+        self.animations_panel = AnimationsPanel(self.engine, animations_dir())
 
         splitter = QSplitter()
+        splitter.addWidget(self.animations_panel)
         splitter.addWidget(self.preview)
         splitter.addWidget(self.panel)
-        splitter.setStretchFactor(0, 1)
-        splitter.setSizes([1040, 360])
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([300, 1040, 360])
+        visible = animations_panel_visible()
+        self.animations_panel.setVisible(visible)  # after addWidget: unparented, it would open as its own window
 
         # top bar (texts are set in retranslate())
+        self.animations_btn = QPushButton()
+        self.animations_btn.setIcon(magic_wand_icon())
+        self.animations_btn.setCheckable(True)
+        self.animations_btn.setChecked(visible)
+        self.animations_btn.setFixedWidth(40)
+        self.animations_btn.toggled.connect(self._on_animations_toggled)
         self.save_btn = QPushButton()
         self.save_btn.clicked.connect(self.save_preset)
         self.load_btn = QPushButton()
@@ -60,6 +82,8 @@ class MainWindow(QMainWindow):
             self.language_combo.addItem(name, code)
         self.language_combo.setCurrentIndex(self.language_combo.findData(language()))
         self.language_combo.currentIndexChanged.connect(self._on_language_changed)
+        self.options_btn = QPushButton()
+        self.options_btn.clicked.connect(self._open_options)
 
         self.output_label = QLabel()
         self.resolution = QComboBox()
@@ -81,6 +105,8 @@ class MainWindow(QMainWindow):
         self.camera_label = QLabel()
 
         bar = QHBoxLayout()
+        bar.addWidget(self.animations_btn)
+        bar.addSpacing(12)
         bar.addWidget(self.save_btn)
         bar.addWidget(self.load_btn)
         bar.addSpacing(24)
@@ -92,6 +118,8 @@ class MainWindow(QMainWindow):
         bar.addSpacing(24)
         bar.addWidget(self.language_label)
         bar.addWidget(self.language_combo)
+        bar.addSpacing(12)
+        bar.addWidget(self.options_btn)
         bar.addStretch(1)
         bar.addWidget(self.camera_label)
         bar.addWidget(self.camera_btn)
@@ -108,14 +136,16 @@ class MainWindow(QMainWindow):
         self.engine.preview_ready.connect(self.preview.set_image)
         self.engine.layers_changed.connect(self.panel.refresh)
         self.engine.fps_measured.connect(lambda fps: self.fps_label.setText(f"{fps:.1f} fps"))
-        self.preview.layer_selected.connect(self.panel.select)
+        self.preview.layer_selected.connect(self._on_preview_selected)
         self.preview.layer_edited.connect(self.panel.refresh)
+        self.preview.layer_edited.connect(self.animations_panel.refresh)
         self.panel.selection_changed.connect(self.preview.set_selected)
         self.panel.add_requested.connect(self.add_layer)
         self.panel.remove_requested.connect(self.remove_layer)
         self.panel.move_requested.connect(self.move_layer)
         self.panel.order_changed.connect(self.engine.set_layer_order)
         self.panel.mask_requested.connect(self.edit_mask)
+        self.animations_panel.editing_changed.connect(self._on_animation_editing)
 
         # slow refresh of things that change on their own (source sizes and errors, camera connection)
         self.timer = QTimer(self)
@@ -133,15 +163,43 @@ class MainWindow(QMainWindow):
         self.mirror.setText(tr("Mirror output"))
         self.mirror.setToolTip(tr("Mirrors the whole image sent to the camera (and the preview) horizontally"))
         self.language_label.setText(tr("Language:"))
+        self.options_btn.setText(tr("⚙ Options…"))
+        self.animations_btn.setToolTip(tr("Animations: show or hide the panel"))
         self._camera_state = None  # force the camera texts to be set again
         self._show_camera_state()
         self.panel.retranslate()
+        self.animations_panel.retranslate()
         if not self.engine.camera.available:
             self.statusBar().showMessage(not_installed_message())
 
     def _on_language_changed(self) -> None:
         apply_language(self.language_combo.currentData(), save=True)
         self.retranslate()
+
+    def _open_options(self) -> None:
+        OptionsDialog(self.preset_path.parent if self.preset_path else default_preset_dir(), self).exec()
+
+    # --- animations ------------------------------------------------------------
+
+    def _on_animations_toggled(self, visible: bool) -> None:
+        self.animations_panel.setVisible(visible)
+        if not visible:
+            self.animations_panel.stop_positioning()
+        set_animations_panel_visible(visible)
+
+    def _on_animation_editing(self, layer_id: str | None) -> None:
+        """The animations panel started (or stopped) positioning an animation: select it in the preview."""
+        self._editing_animation = layer_id
+        if layer_id is None:  # back to the layer selected in the list
+            layer = self.panel.selected_layer()
+            layer_id = layer.id if layer else None
+        self.preview.set_selected(layer_id)
+
+    def _on_preview_selected(self, layer_id: str | None) -> None:
+        # the animation being positioned has its own fields: the layer list keeps its selection
+        # (selecting an id it doesn't have would clear it, and deselect the animation again)
+        if layer_id is None or layer_id != self._editing_animation:
+            self.panel.select(layer_id)
 
     # --- layers ----------------------------------------------------------------
 
@@ -155,6 +213,7 @@ class MainWindow(QMainWindow):
             return
         spec, name = result
         layer = Layer(spec, name)
+        layer.transform.flip_h = spec.type == "webcam"  # webcams start mirrored: the way people see themselves
         self.engine.add_layer(layer)
         self.panel.rebuild(select_id=layer.id)
 
@@ -199,8 +258,20 @@ class MainWindow(QMainWindow):
     def load_preset(self) -> None:
         start = str(self.preset_path.parent if self.preset_path else default_preset_dir())
         path, _ = QFileDialog.getOpenFileName(self, tr("Load preset"), start, tr("simpleVCam presets (*.json)"))
-        if not path:
+        if path:
+            self._open_preset(Path(path))
+
+    def load_startup_preset(self) -> None:
+        """Loads the preset chosen in the options, if any. A missing file is reported and the app goes on without it."""
+        path = startup_preset()
+        if path is None:
             return
+        if not path.is_file():
+            QMessageBox.warning(self, "simpleVCam", tr("Startup preset not found:\n{path}", path=path))
+            return
+        self._open_preset(path)
+
+    def _open_preset(self, path: Path) -> None:
         try:
             scene = load_preset(path)
         except Exception as e:
@@ -210,9 +281,10 @@ class MainWindow(QMainWindow):
             self.engine.set_scene(scene)
         except VCamError as e:
             self._camera_failed(e)
-        self.preset_path = Path(path)
+        self.preset_path = path
         self._show_output(scene.output)
         self.panel.rebuild()
+        self.animations_panel.scene_changed()
         self.statusBar().showMessage(tr("Preset loaded: {path}", path=path), 5000)
 
     # --- output and camera -----------------------------------------------------
@@ -283,6 +355,7 @@ class MainWindow(QMainWindow):
 
     def _periodic(self) -> None:
         self.panel.refresh()
+        self.animations_panel.refresh()
         self._show_camera_state()
 
     def closeEvent(self, event) -> None:

@@ -1,4 +1,4 @@
-"""Scene description: output settings and a stack of layers (index 0 = bottom)."""
+"""Scene description: output settings, a stack of layers (index 0 = bottom) and where the animations appear."""
 from __future__ import annotations
 
 import uuid
@@ -9,6 +9,8 @@ import numpy as np
 from .i18n import tr
 
 SOURCE_TYPES = ("screen", "window", "image", "webcam")
+ANIMATION_SLOTS = range(1, 10)  # the soundboard buttons, numbered like their folders
+ANIMATION_PLAYS = range(1, 11)  # how many times in a row an animation can play
 
 
 @dataclass
@@ -161,11 +163,35 @@ class Layer:
         t.x, t.y = (output.width - cw * s) / 2, (output.height - ch * s) / 2
         t.scale_x = t.scale_y = s
 
+    def center_native(self, output: OutputSettings) -> None:
+        """Shows the (cropped) source at its own size, centered on the canvas; keeps the mirroring."""
+        cw, ch = self.cropped_size()
+        t = self.transform
+        t.x, t.y = (output.width - cw) / 2, (output.height - ch) / 2
+        t.scale_x = t.scale_y = 1.0
+
+
+@dataclass
+class AnimationPlacement(Layer):
+    """Where a soundboard animation appears, and how many times in a row it plays.
+
+    Only the geometry of the layer is used: the frames come from the slot's folder, the source is a placeholder.
+    """
+
+    plays: int = 1
+
+
+def animation_placement(slot: int) -> AnimationPlacement:
+    return AnimationPlacement(SourceSpec("image"), f"animation {slot}", id=f"animation-{slot}")
+
 
 @dataclass
 class Scene:
     output: OutputSettings = field(default_factory=OutputSettings)
     layers: list[Layer] = field(default_factory=list)  # index 0 = bottom (drawn first)
+    # Placement of the soundboard animations by slot, drawn over all layers while they play.
+    # A slot missing here plays once, at its own size, centered.
+    animations: dict[int, AnimationPlacement] = field(default_factory=dict)
 
     def layer_by_id(self, layer_id: str) -> Layer | None:
-        return next((l for l in self.layers if l.id == layer_id), None)
+        return next((l for l in (*self.layers, *self.animations.values()) if l.id == layer_id), None)

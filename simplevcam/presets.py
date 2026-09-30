@@ -2,6 +2,8 @@
 
 Masks are stored as PNG files in a "<preset>_masks" folder next to the JSON,
 referenced by a path relative to the JSON file.
+The placement of the soundboard animations (and how many times they play) is stored by slot number; the animation
+files are not part of the preset.
 """
 from __future__ import annotations
 
@@ -12,7 +14,8 @@ import cv2
 import numpy as np
 
 from .i18n import tr
-from .model import Crop, Layer, OutputSettings, Scene, SourceSpec, Transform
+from .model import (ANIMATION_PLAYS, ANIMATION_SLOTS, Crop, Layer, OutputSettings, Scene, SourceSpec, Transform,
+                    animation_placement)
 
 PRESET_VERSION = 1
 
@@ -56,7 +59,10 @@ def save_preset(scene: Scene, path: str | Path) -> None:
             "mask": mask_ref,
         })
 
-    data = {"version": PRESET_VERSION, "output": scene.output.to_dict(), "layers": layers}
+    animations = {str(slot): {"transform": p.transform.to_dict(), "crop": p.crop.to_dict(), "plays": p.plays}
+                  for slot, p in sorted(scene.animations.items())}
+
+    data = {"version": PRESET_VERSION, "output": scene.output.to_dict(), "layers": layers, "animations": animations}
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # remove masks of layers that no longer exist or no longer have a mask
@@ -91,4 +97,14 @@ def load_preset(path: str | Path) -> Scene:
                 raise ValueError(tr("unreadable mask: {path}", path=d["mask"]))
             layer.set_mask(mask)
         scene.layers.append(layer)
+
+    # presets saved before the animations have none: they play once, at their own size, centered
+    for key, d in data.get("animations", {}).items():
+        if not key.isdigit() or int(key) not in ANIMATION_SLOTS:
+            continue
+        placement = animation_placement(int(key))
+        placement.transform = Transform.from_dict(d.get("transform", {}))
+        placement.crop = Crop.from_dict(d.get("crop", {}))
+        placement.plays = min(max(int(d.get("plays", 1)), ANIMATION_PLAYS[0]), ANIMATION_PLAYS[-1])
+        scene.animations[int(key)] = placement
     return scene

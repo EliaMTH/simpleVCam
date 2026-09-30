@@ -1,4 +1,7 @@
-"""Preview of the composed output. Click to select a layer, drag to move it, drag a corner to resize it."""
+"""Preview of the composed output. Click to select a layer, drag to move it, drag a corner to resize it.
+
+The animation being positioned (see AnimationsPanel) can be selected and moved the same way.
+"""
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
@@ -86,7 +89,7 @@ class PreviewWidget(QWidget):
         return None
 
     def _layer_at(self, pos: QPointF) -> Layer | None:
-        for layer in reversed(self.engine.scene.layers):  # topmost first
+        for layer in reversed(self.engine.pickable_layers()):  # topmost first
             if layer.source_size and self._layer_widget_rect(layer).contains(pos):
                 return layer
         return None

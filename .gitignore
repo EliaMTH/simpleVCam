@@ -4,5 +4,6 @@ __pycache__/
 native/build/
 scripts/selftest_*.png
 presets/*
+/animations/
 build/
 dist/

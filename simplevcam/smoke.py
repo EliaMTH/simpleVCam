@@ -30,6 +30,14 @@ def run(report_path: str | None) -> int:
 
     tmp = Path(tempfile.mkdtemp(prefix="simplevcam_smoke_"))
     image_path = tmp / "layer.png"
+    animation_path = tmp / "animation.webp"
+
+    def write_animation():
+        from PIL import Image
+
+        # half-transparent red, then blue: WebP must keep the alpha
+        frames = [Image.new("RGBA", (40, 30), color) for color in ((255, 0, 0, 128), (0, 0, 255, 128))]
+        frames[0].save(animation_path, save_all=True, append_images=frames[1:], duration=1000, loop=0, lossless=True)
 
     def version():
         from . import __version__
@@ -82,6 +90,15 @@ def run(report_path: str | None) -> int:
             raise RuntimeError("mask changed after save/load")
         return "save/load ok"
 
+    def animations():
+        from .animations import decode_frames
+
+        write_animation()
+        frames = list(decode_frames(animation_path.read_bytes()))
+        if len(frames) != 2 or tuple(frames[0][0][15, 20]) != (0, 0, 255, 128):
+            raise RuntimeError("animated WebP decoded wrong")
+        return f"animated WebP: {len(frames)} frames, alpha kept"
+
     def window_and_render():
         from PySide6.QtCore import QEventLoop, QTimer
 
@@ -99,8 +116,28 @@ def run(report_path: str | None) -> int:
                 loop.exec()
             if window.preview.image is None or layer.source_size is None:
                 raise RuntimeError("no frame rendered")
-            color = window.preview.image.pixelColor(window.engine.scene.output.width // 2, window.engine.scene.output.height // 2)
-            return f"frame {window.preview.image.width()}x{window.preview.image.height()}, center {color.name()}"
+            out = window.engine.scene.output
+            color = window.preview.image.pixelColor(out.width // 2, out.height // 2)
+
+            # an animation plays over the layer, centered
+            from .animations import load_slot
+
+            if not animation_path.exists():
+                write_animation()
+            slot_dir = tmp / "slot"
+            slot_dir.mkdir()
+            shutil.copy(animation_path, slot_dir)
+            window.engine.play_animation(load_slot(1, slot_dir))
+            deadline = time.monotonic() + 5
+            while window.preview.image.pixelColor(out.width // 2, out.height // 2) == color and time.monotonic() < deadline:
+                loop = QEventLoop()
+                QTimer.singleShot(50, loop.quit)
+                loop.exec()
+            animated = window.preview.image.pixelColor(out.width // 2, out.height // 2)
+            if animated == color:
+                raise RuntimeError("the animation was not drawn")
+            return (f"frame {window.preview.image.width()}x{window.preview.image.height()}, center {color.name()}, "
+                    f"with the animation {animated.name()}")
         finally:
             window.close()
             window.engine.shutdown()
@@ -113,7 +150,8 @@ def run(report_path: str | None) -> int:
     try:
         for name, fn in (("version", version), ("opencv", opencv), ("graphics capture", graphics_capture),
                          ("directshow", directshow), ("monitors", monitors), ("windows", windows),
-                         ("presets", presets), ("window and render", window_and_render), ("camera dll", camera)):
+                         ("presets", presets), ("animations", animations), ("window and render", window_and_render),
+                         ("camera dll", camera)):
             check(name, fn)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
