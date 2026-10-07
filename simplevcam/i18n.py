@@ -171,6 +171,7 @@ ITALIAN = {
     "webcam not available (maybe in use by another app): {name}":
         "webcam non disponibile (forse in uso da un'altra app): {name}",
     "webcam disconnected: {name}": "webcam scollegata: {name}",
+    "webcam not responding: {name}": "webcam non risponde: {name}",
     "window not found: {name}": "finestra non trovata: {name}",
     "image not found: {path}": "immagine non trovata: {path}",
     "capture failed: {error}": "cattura non riuscita: {error}",

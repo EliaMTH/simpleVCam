@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+from contextlib import contextmanager
 from ctypes import wintypes
 from dataclasses import dataclass
 
@@ -11,6 +12,7 @@ from ..i18n import tr
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 dwmapi = ctypes.WinDLL("dwmapi")
+ole32 = ctypes.WinDLL("ole32")
 
 _MONITORENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
 _WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -31,6 +33,12 @@ kernel32.OpenProcess.restype = wintypes.HANDLE
 kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+ole32.CoInitializeEx.restype = ctypes.c_long  # the raw HRESULT
+ole32.CoUninitialize.argtypes = []
+ole32.CoUninitialize.restype = None
+
+COINIT_APARTMENTTHREADED = 0x2
 
 
 class _MONITORINFOEXW(ctypes.Structure):
@@ -158,8 +166,25 @@ def find_window(title: str | None, exe: str | None) -> WindowInfo | None:
     return None
 
 
+@contextmanager
+def com_initialized():
+    """COM for the calling thread, single-threaded like OpenCV's DirectShow backend wants it.
+
+    Needed by list_webcams() outside the GUI thread: comtypes initializes only the thread that imports it first,
+    the others fail with CO_E_NOTINITIALIZED (unless a multithreaded apartment happens to exist, e.g. while the
+    virtual camera runs).
+    """
+    hr = ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    try:
+        yield
+    finally:
+        if hr >= 0:  # S_OK, or S_FALSE if already initialized: both need their CoUninitialize
+            ole32.CoUninitialize()
+
+
 def list_webcams(exclude_prefix: str = "simpleVCam") -> list[WebcamInfo]:
-    """DirectShow video devices, without our own virtual camera (it would feed back into itself)."""
+    """DirectShow video devices, without our own virtual camera (it would feed back into itself).
+    Outside the GUI thread, call it inside com_initialized()."""
     try:
         from pygrabber.dshow_graph import FilterGraph
 
